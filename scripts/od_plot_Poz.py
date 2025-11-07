@@ -129,6 +129,7 @@ for node, workplace in zip(nn_wp, work[useful_tags_wp].to_dict(orient="records")
     building = {k: v for k, v in building.items() if pd.notna(v)}
     full_graph.nodes[node].update({"amenity": workplace})
 
+## export to geodataframe for further processing
 nodes, streets = ox.graph_to_gdfs(full_graph)
 
 
