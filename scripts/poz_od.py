@@ -14,9 +14,11 @@ import geopandas as gpd
 import os
 import matplotlib.pyplot as plt
 # from shapely.geometry import box
-import osmnx as ox
 import networkx as nx
 import mapclassify
+import osmnx as ox
+ox.settings.log_console = True     # show logs in notebook/console
+ox.settings.use_cache = True       # enable local caching to save API
 
 ## adjust your path
 os.chdir("C:\\Users\\wozni\\Google Drive\\UAM\\HUB\\MobilityPatterns\\Data")
@@ -123,13 +125,10 @@ for node, building in zip(nn_bui, bui[useful_tags_bui].to_dict(orient="records")
     building = {k: v for k, v in building.items() if pd.notna(v)}
     full_graph.nodes[node].update({"building": building})
 
-
-
 for node, workplace in zip(nn_wp, work[useful_tags_wp].to_dict(orient="records")):
-    building = {k: v for k, v in building.items() if pd.notna(v)}
+    workplace = {k: v for k, v in workplace.items() if pd.notna(v)}
     full_graph.nodes[node].update({"amenity": workplace})
 
-## export to geodataframe for further processing
 nodes, streets = ox.graph_to_gdfs(full_graph)
 
 
@@ -158,7 +157,7 @@ plt.show()
 mapclassify.Quantiles(pop_cut.tot_15_64, k=5)
 
 
-
-
+## save graph
+ox.save_graphml(full_graph, './poz_graph.graphml')
 
 
