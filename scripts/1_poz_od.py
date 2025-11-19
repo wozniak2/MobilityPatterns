@@ -40,25 +40,8 @@ poznanOD['home_code'].dtype
 
 merged_df = pd.merge(poznanOD, ap, on='home_code', how='inner')
 
-# pd.concat([merged_df['home_name'],ap['JPT_NAZWA_JE_']]).drop_duplicates(keep=False)
-
-# bounding_box = {
-#    "min_lon": 16.513,
-#    "max_lon": 17.402,
-#    "min_lat": 52.098,
-#    "max_lat": 52.656,
-# }
-
-# min_lon = bounding_box["min_lon"]
-# max_lon = bounding_box["max_lon"]
-# min_lat = bounding_box["min_lat"]
-# max_lat = bounding_box["max_lat"]
-
-# bbox = box(min_lon, min_lat, max_lon, max_lat)
-# g = gpd.GeoSeries([bbox])
-
-#clipped_gdf = gdf.loc[gdf.geometry.within(bbox)]
-#clipped_gdf.crs
+# select the specific gmina by its name or ID
+# gmina_1 = merged_df.loc[merged_df['home_code'] == ''].iloc[0].geometry
 
 
 # create network from that bounding box
@@ -102,6 +85,8 @@ pop_cut = gpd.overlay(ap_reprojected, pop_reprojected, how='intersection')
 buildings = ox.features_from_bbox(o_bb, tags=tags_bui)
 bui = buildings[buildings.geometry.geom_type == 'Polygon']
 
+
+
 workplaces = ox.features_from_place("Poznań, Poland", tags=tags_wp)
 work = workplaces[workplaces.geometry.geom_type == 'Polygon']
 work['amenity'] = work['amenity'].fillna("wp")
@@ -111,23 +96,28 @@ poz_reprojected = poz.to_crs({'init': 'epsg:4326'})
 work_cut = gpd.overlay(poz_reprojected, work, how='intersection')
 bui_cut = gpd.overlay(ap_reprojected, bui, how='intersection')
 
+# write .gpkg to files
+bui_cut.to_file("buidlings.gpkg", layer = 'buildings', driver="GPKG")
+work_cut.to_file("workplaces.gpkg", layer = 'work', driver="GPKG")
+
 # attach buildings and workplaces to the nearest nodes as attributes
+# road network only
 bui_points = bui_cut.representative_point()
-nn_bui = ox.distance.nearest_nodes(full_graph, bui_points.x, bui_points.y)
+nn_bui = ox.distance.nearest_nodes(G, bui_points.x, bui_points.y)
 
 wp_points = work_cut.representative_point()
-nn_wp = ox.distance.nearest_nodes(full_graph, wp_points.x, wp_points.y)
+nn_wp = ox.distance.nearest_nodes(G, wp_points.x, wp_points.y)
 
 useful_tags_bui = ["building"]
 useful_tags_wp = ["amenity"]
 
 for node, building in zip(nn_bui, bui[useful_tags_bui].to_dict(orient="records")):
     building = {k: v for k, v in building.items() if pd.notna(v)}
-    full_graph.nodes[node].update({"building": building})
+    G.nodes[node].update({"building": building})
 
 for node, workplace in zip(nn_wp, work[useful_tags_wp].to_dict(orient="records")):
     workplace = {k: v for k, v in workplace.items() if pd.notna(v)}
-    full_graph.nodes[node].update({"amenity": workplace})
+    G.nodes[node].update({"amenity": workplace})
 
 nodes, streets = ox.graph_to_gdfs(full_graph)
 
@@ -160,4 +150,4 @@ mapclassify.Quantiles(pop_cut.tot_15_64, k=5)
 ## save graph
 ox.save_graphml(full_graph, './poz_graph.graphml')
 
-
+ox.save_graphml(G, './poz_roads.graphml')
