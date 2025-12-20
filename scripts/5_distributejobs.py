@@ -106,7 +106,7 @@ polyjobs = polyjobs.to_crs(hex_h3.crs)
 # distribute workplaces across hex based on GHSL distribution and regon
 polyjobs["workplaces"] = capped_proportional_allocation(
     polyjobs["raster_mean"],
-    total=120_000,
+    total=371_000,
     cap=12_000
 )
 

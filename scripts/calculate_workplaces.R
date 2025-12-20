@@ -4,7 +4,7 @@ library(sf)
 library(terra)
 library(tmap)
 
-setwd("/home/adam/Dokumenty/commuting_patterns")
+setwd("C:/Users/wozni/OneDrive/Pulpit/MobilityPatterns/Data")
 
 #Set global parameters
 tmap_mode("view")
@@ -65,4 +65,4 @@ workplace_grid$workplaces <- ((workplace_grid$nonres_weight * ghsl_share) +
                                 total_workplaces
 
 #OPTIONAL: Plot to check
-#tm_shape(filter(workplace_grid, workplaces >0)) + tm_polygons(fill = "workplaces", col_alpha = 0, fill_alpha = 0.5, palette = "Reds")
+tm_shape(filter(workplace_grid, workplaces >0)) + tm_polygons(fill = "workplaces", col_alpha = 0, fill_alpha = 0.5, palette = "Reds")
