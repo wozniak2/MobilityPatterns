@@ -12,6 +12,9 @@ import os
 import osmnx as ox
 import matplotlib.pyplot as plt
 import rasterio
+from rasterio.plot import show
+from rasterio.mask import mask
+from rasterio.features import shapes
 import h3pandas
 from rasterstats import zonal_stats
 import geopandas
@@ -20,7 +23,8 @@ ox.settings.log_console = True     # show logs in notebook/console
 ox.settings.use_cache = True       # enable local caching to save API
 
 import numpy as np
-
+from geocube.vector import vectorize
+import rioxarray
 
 def capped_proportional_allocation(x, total, cap):
     """
@@ -60,9 +64,16 @@ deleg = gpd.read_file('delegatury.gpkg') ##
 regon = pd.read_csv('regon_clean.csv') ##
 ceidg= pd.read_csv('ceidg_geocode.csv') ##
 work_bui = gpd.read_file('work_bdot.gpkg') ##
-poz = gpd.read_file('poz.gpkg') ## poznan agglomeration without the city
+poz = gpd.read_file('boundary.gpkg') ## core city
 # merge files
 df  = deleg.merge(regon, on='name', how='left')
+
+
+data = rioxarray.open_rasterio(fp, mask_and_scale=True).squeeze()
+data.name = "raster_values"
+ghs_gdf = vectorize(data)
+poz = poz.to_crs(ghs_gdf.crs)
+ghs_gdf_cut = gpd.overlay(ghs_gdf, poz, how='intersection')
 
 # Remove na values
 ceidg = ceidg[ceidg['g_geometry'].notna()]
@@ -74,7 +85,7 @@ gdf = gdf.set_crs(crs='EPSG:4326')
 
 gdf = gdf.to_crs(poz.crs)
 gdf_cut = gpd.overlay(gdf, poz, how='intersection')
-
+gdf_cut.to_file("gdf_cut_py.gpkg")
 
 # Resample to H3 cells
 poz_rep = poz.to_crs(crs='EPSG:4326')
@@ -82,15 +93,15 @@ resolution=7
 hex_h3 = poz_rep.h3.polyfill_resample(resolution)
 
 # match raster crs
-polyjobs = hex_h3.to_crs(raster.crs)
+polyjobs = hex_h3.to_crs(ghs_gdf_cut.crs)
 
 # extract raster values
 stats = zonal_stats(
     polyjobs,              # The GeoDataFrame geometries
-    raster.read(1),        # Read the first band of the opened raster object
-    affine=raster.transform, # Pass the affine transform from the raster object
+    ghs_gdf_cut.read(1),        # Read the first band of the opened raster object
+    affine=ghs_gdf_cut.transform, # Pass the affine transform from the raster object
     stats=['mean'],        # The statistic we want to calculate
-    nodata=raster.nodata,    # Optional: Pass the raster's NoData value
+    nodata=ghs_gdf_cut.nodata,    # Optional: Pass the raster's NoData value
     geo_json=False
 )
 
@@ -111,6 +122,11 @@ polyjobs["workplaces"] = capped_proportional_allocation(
 )
 
 
+ghs_gdf_cut['raster_values'].mean()
+
+ghs_rep = ghs_gdf_cut.to_crs(crs='EPSG:4326')
+poz_rep = poz.to_crs(crs='EPSG:4326')
+
 # initialize plot
 fig, (ax1, ax2) = plt.subplots(1,2, figsize=(15,15))
 # 1. Change the background color of the Figure (the canvas holding everything)
@@ -128,8 +144,10 @@ gdf_cut.plot(ax=ax1, markersize=0.01, color = 'red', alpha=0.1)
 ax1.title.set_text('REGON-delegatury + geocoded CEIDG')
 ax1.title.set_color('white')
 
-polyjobs.plot(ax=ax2, column ='workplaces', cmap='OrRd')
-gdf_cut.plot(ax=ax2, markersize=0.01, color = 'red', alpha=0.1)
+poz_rep.plot(ax=ax2,ec='white')
+#gdf_cut.plot(ax=ax2, markersize=0.01, color = 'red', alpha=0.1)
+ghs_rep.plot(ax=ax2, alpha=0.5, cmap='OrRd', column = 'raster_values')
+
 ax2.title.set_text('hexagon grid (GHSL) + geocoded CEIDG')
 ax2.title.set_color('white')
 
