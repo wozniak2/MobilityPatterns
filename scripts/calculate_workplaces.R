@@ -4,13 +4,14 @@ library(sf)
 library(terra)
 library(tmap)
 
-setwd("C:/Users/wozni/OneDrive/Pulpit/MobilityPatterns/Data")
+setwd("/home/adam/Dokumenty/commuting_patterns")
 
 #Set global parameters
 tmap_mode("view")
 total_workplaces <- 371010 #June 2025
 ghsl_share <- 0.8
 sme_share <- 0.2
+vo_threshold <- 51
 
 #Get city boundary from OSM
 boundary <- opq('poznan poland') %>% 
@@ -40,7 +41,7 @@ workplace_grid <- st_transform(workplace_grid, st_crs <- 4326)
 workplace_grid <- st_make_valid(workplace_grid)
 
 #OPTIONAL: Plot to check
-#tm_shape(workplace_grid) + tm_polygons(fill = "nonres_volume", col_alpha = 0, palette = "Reds")
+#tm_shape(filter(workplace_grid, nonres_volume >0)) + tm_polygons(fill = "nonres_volume", col_alpha = 0, palette = "Reds")
 
 #Read small enterprises data
 sme <- read.csv("ceidg_geocode.csv")
@@ -50,6 +51,12 @@ sme <- st_make_valid(sme)
 
 #OPTIONAL: plot to check
 #tm_shape(sme) + tm_symbols()
+
+#Remove virtual offices
+sme$street_and_number <- paste(sme$g_ul, sub("/.", "", sme$g_adr_nr), sep = " ")
+sme_by_addr <- as.data.frame(table(sme$street_and_number))
+sme <- left_join(sme, sme_by_addr, by = c("street_and_number" = "Var1"))
+sme <- sme %>% filter(Freq < vo_threshold)
 
 #Add SME to grid
 sme_join <- st_join(sme, workplace_grid, join = st_within)
@@ -64,5 +71,7 @@ workplace_grid$workplaces <- ((workplace_grid$nonres_weight * ghsl_share) +
                               (workplace_grid$sme_weight * sme_share)) * 
                                 total_workplaces
 
+st_write(workplace_grid, "workplace_grid.gpkg", append = FALSE)
+
 #OPTIONAL: Plot to check
-tm_shape(filter(workplace_grid, workplaces >0)) + tm_polygons(fill = "workplaces", col_alpha = 0, fill_alpha = 0.5, palette = "Reds")
+#tm_shape(filter(workplace_grid, workplaces >10)) + tm_polygons(fill = "workplaces", col_alpha = 0, fill_alpha = 0.5, palette = "Reds")
