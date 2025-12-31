@@ -19,7 +19,7 @@ boundary <- opq('poznan poland') %>%
   osmdata_sf() %>% 
   unname_osmdata_sf()
 boundary <- boundary$osm_multipolygons %>% filter(name == "Poznań")
-
+st_write(boundary, "boundary.gpkg")
 #OPTIONAL: Check if downloaded correctly
 #tm_shape(boundary) + tm_polygons()
 
@@ -29,7 +29,7 @@ boundary <- st_transform(boundary, st_crs(ghsl_nonres))
 
 #Crop to boundary extent and vectorize
 ghsl_nonres <- crop(ghsl_nonres, boundary)
-ghsl_nonres <- as.polygons(ghsl_nonres, aggregate = FALSE) %>% st_as_sf()
+ghsl_nonres <- as.polygons(ghsl_nonres, aggregate = F)  %>% st_as_sf()
 
 #Make workplaces grid
 workplace_grid <- st_intersection(ghsl_nonres, boundary)
