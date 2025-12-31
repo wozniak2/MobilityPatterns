@@ -198,17 +198,18 @@ wg_plot["workplace_bin"] = pd.cut(
     wg_plot["workplaces"], bins=bins, labels=labels, include_lowest=True
 )
 
-
+wg_plot = wg_plot.to_crs(epsg=3857)
 # apply zoom
 x_min, y_min, x_max, y_max = wg_plot.total_bounds
-pad = 100  # in meters (Web Mercator units)
+pad = 1000  # in meters (Web Mercator units)
 xlim = (x_min - pad, x_max + pad)
 ylim = (y_min - pad, y_max + pad)
 
 # plot polygons colored by bin
 fig, ax = plt.subplots(figsize=(10, 10))
 wg_plot.plot(
-    column="workplaces",
+    column="workplace_bin",
+    categorical=True,
     legend=True,
     cmap="Reds",
     ec="black",
