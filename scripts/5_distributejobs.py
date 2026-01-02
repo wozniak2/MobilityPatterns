@@ -59,7 +59,7 @@ rows, cols = arr.shape
 polys = []
 values = []
 
-# read from raster
+# read values from raster
 for row in range(rows):
     for col in range(cols):
         x_min, y_max = transform * (col, row)
@@ -75,23 +75,17 @@ ghs_gdf = gpd.GeoDataFrame(
 )
 
 
-# match crs
+# match crs and cut
 poz = poz.to_crs(ghs_gdf.crs)
-
-
-# cut to the city
 workplace_grid = gpd.overlay(ghs_gdf, poz, how='intersection', keep_geom_type = False)
 
 
-
+# calculate workplaces
 workplace_grid["nonres_weight"] = (
     workplace_grid["raster_values"] / workplace_grid["raster_values"].sum()
 )
 workplace_grid["grid_id"] = range(1, len(workplace_grid) + 1)
 workplace_grid = workplace_grid.to_crs(epsg=4326)
-
-
-#workplace_grid["geometry"] = workplace_grid["geometry"].make_valid()
 
 
 # Remove na values
@@ -103,7 +97,6 @@ sme = gpd.GeoDataFrame(
     geometry=gpd.points_from_xy(ceidg["g_dlug"], ceidg["g_szer"]),
     crs="EPSG:4326"
 )
-sme["geometry"] = sme["geometry"].make_valid()
 
 sme_join = gpd.sjoin(
     sme,
@@ -156,8 +149,10 @@ workplace_grid.to_file("workplace_grid.gpkg")
 ##
 
 
+
 import contextily as ctx
 wg_plot = workplace_grid[workplace_grid["workplaces"] > 0]
+poz = poz.to_crs(wg_plot.crs)
 bins = [0, 99, 199, 299, 399, 499, 599, 700]
 labels = ["0-99", "100-199", "200-299", "300-399", "400-499", "500-599", "600-700"]
 
@@ -166,10 +161,10 @@ wg_plot["workplace_bin"] = pd.cut(
     wg_plot["workplaces"], bins=bins, labels=labels, include_lowest=True
 )
 
-wg_plot = wg_plot.to_crs(epsg=3857)
+wg_plot = wg_plot.to_crs(epsg=4326)
 # apply zoom
 x_min, y_min, x_max, y_max = wg_plot.total_bounds
-pad = 1000  # in meters (Web Mercator units)
+pad = 0.01 #scalling parameter
 xlim = (x_min - pad, x_max + pad)
 ylim = (y_min - pad, y_max + pad)
 
@@ -181,11 +176,11 @@ wg_plot.plot(
     legend=True,
     cmap="Reds",
     ec="black",
-    alpha=1,
+    alpha=0.7,
     linewidth=0.1,
     ax=ax
 )
-#poz.plot(ax=ax, facecolor='none')
+poz.plot(ax=ax, facecolor='none')
 ctx.add_basemap(
     ax,
     source=ctx.providers.CartoDB.Positron,  # light grayscale tiles
@@ -193,8 +188,8 @@ ctx.add_basemap(
 )
 
 # apply zoom
-#ax.set_xlim(xlim)
-#ax.set_ylim(ylim)
+ax.set_xlim(xlim)
+ax.set_ylim(ylim)
 ax.set_axis_off()
 plt.show()
 
