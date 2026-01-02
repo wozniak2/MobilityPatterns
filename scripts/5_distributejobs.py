@@ -48,9 +48,10 @@ data = rioxarray.open_rasterio(fp, mask_and_scale=False)
 
 
 # convert raster to polygons
+# time consumming; perhabs can be optimized
+
 from shapely.geometry import box
 arr = np.asarray(data.squeeze(), dtype=np.float32)
-
 
 transform = data.rio.transform()
 rows, cols = arr.shape
@@ -58,6 +59,7 @@ rows, cols = arr.shape
 polys = []
 values = []
 
+# read from raster
 for row in range(rows):
     for col in range(cols):
         x_min, y_max = transform * (col, row)
@@ -66,13 +68,14 @@ for row in range(rows):
         polys.append(box(x_min, y_min, x_max, y_max))
         values.append(arr[row, col])
 
+# write to gdf
 ghs_gdf = gpd.GeoDataFrame(
     {"raster_values": values, "geometry": polys},
     crs=data.rio.crs
 )
 
 
-
+# match crs
 poz = poz.to_crs(ghs_gdf.crs)
 
 
@@ -148,11 +151,13 @@ workplace_grid.to_file("workplace_grid.gpkg")
 
 
 
-wg_plot = workplace_grid[workplace_grid["workplaces"] > 0]
-
+##
+## Plots jobs distribution
+##
 
 
 import contextily as ctx
+wg_plot = workplace_grid[workplace_grid["workplaces"] > 0]
 bins = [0, 99, 199, 299, 399, 499, 599, 700]
 labels = ["0-99", "100-199", "200-299", "300-399", "400-499", "500-599", "600-700"]
 

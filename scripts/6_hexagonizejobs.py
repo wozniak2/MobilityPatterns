@@ -4,46 +4,39 @@ Created on Fri Jan  2 11:33:42 2026
 
 @author: wozni
 """
+import pandas as pd
+import geopandas as gpd
+import os
+
+import matplotlib.pyplot as plt
+
+import h3pandas
+
+
+# import neccessary files --> distributejobs.py
+
+workplace_grid = gpd.read_file('workplace_grid.gpkg')
+poz = gpd.read_file('boundary.gpkg') ## core city
+
+# project
+poz = poz.to_crs(crs='EPSG:4326')
+workplace_grid = workplace_grid.to_crs(poz.crs)
 
 # Resample to H3 cells
-poz_rep = poz.to_crs(crs='EPSG:4326')
 resolution=7
-hex_h3 = poz_rep.h3.polyfill_resample(resolution)
+hex_h3 = poz.h3.polyfill_resample(resolution)
 
-# match raster crs
-polyjobs = hex_h3.to_crs(ghs_gdf_cut.crs)
+# match crs
+hex_jobs = hex_h3.to_crs(poz.crs)
 
-# extract raster values
-stats = zonal_stats(
-    polyjobs,              # The GeoDataFrame geometries
-    ghs_gdf_cut.read(1),        # Read the first band of the opened raster object
-    affine=ghs_gdf_cut.transform, # Pass the affine transform from the raster object
-    stats=['mean'],        # The statistic we want to calculate
-    nodata=ghs_gdf_cut.nodata,    # Optional: Pass the raster's NoData value
-    geo_json=False
+
+joined = gpd.sjoin(
+    workplace_grid,
+    hex_jobs[["hex_id", "geometry"]],
+    how="left",
+    predicate="within"
 )
 
-
-mean_values = [stat['mean'] for stat in stats]
-
-# Add the new column to GeoDataFrame
-polyjobs['raster_mean'] = mean_values
-
-# get back to previous crs
-polyjobs = polyjobs.to_crs(hex_h3.crs)
-
-# distribute workplaces across hex based on GHSL distribution and regon
-polyjobs["workplaces"] = capped_proportional_allocation(
-    polyjobs["raster_mean"],
-    total=371_000,
-    cap=12_000
-)
-
-
-ghs_gdf_cut['raster_values'].mean()
-
-ghs_rep = ghs_gdf_cut.to_crs(crs='EPSG:4326')
-poz_rep = poz.to_crs(crs='EPSG:4326')
 
 # initialize plot
 fig, (ax1, ax2) = plt.subplots(1,2, figsize=(15,15))
