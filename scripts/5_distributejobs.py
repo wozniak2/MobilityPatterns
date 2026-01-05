@@ -15,8 +15,7 @@ import rasterio
 #from rasterio.mask import mask
 # from rasterio.features import shapes
 # import h3pandas
-from rasterstats import zonal_stats
-import geopandas
+#from rasterstats import zonal_stats
 #from shapely import wkt
 # ox.settings.log_console = True     # show logs in notebook/console
 # ox.settings.use_cache = True       # enable local caching to save API
