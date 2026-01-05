@@ -4,14 +4,22 @@ Created on Mon Jan  5 10:52:48 2026
 
 @author: wozni
 """
-import rasterio
+
 import numpy as np
 import rioxarray
 import geopandas as gpd
-
+import matplotlib.pyplot as plt
 fp = r"C:\\Users\\wozni\\Google Drive\\UAM\\HUB\\MobilityPatterns\\Data\\ghs_pop.tif"
+# create network from that bounding box
+o_bb = 17.402, 52.680, 16.460, 52.151
+import osmnx as ox
+cf = '["highway"~"primary|secondary|motorway|trunk"]'
+G = ox.graph.graph_from_bbox(o_bb, network_type="drive_service", custom_filter=cf)
+nodes, streets = ox.graph_to_gdfs(G)
+
 
 data = rioxarray.open_rasterio(fp, mask_and_scale=False)
+ap = gpd.read_file('ap.gpkg') ## poznan agglomeration without the city
 
 
 
@@ -41,3 +49,38 @@ ghs_gdf = gpd.GeoDataFrame(
     {"raster_values": values, "geometry": polys},
     crs=data.rio.crs
 )
+
+# match crs and cut
+ap = ap.to_crs(ghs_gdf.crs)
+pop_grid = gpd.overlay(ghs_gdf, ap, how='intersection', keep_geom_type = False)
+
+ap_union = ap.geometry.unary_union
+ap_union = gpd.GeoSeries([ap_union], crs=pop_grid.crs)
+streets = streets.to_crs(crs=pop_grid.crs)
+# initialize plot
+import contextily as ctx
+
+
+fig, ax = plt.subplots(figsize=(8, 8))
+
+pop_grid.plot(
+    column="raster_values",
+    ax=ax,
+    scheme="NaturalBreaks",
+    k=6,
+    cmap="viridis",
+    linewidth=0,
+    alpha=0.5,
+    legend=True,
+    legend_kwds={"fmt": "{:.0f}"} 
+)
+#ap_union.plot(ax=ax, facecolor='none', linewidth=0.5)
+streets.plot(ax=ax, ec='black', linewidth=0.3, alpha=0.7)
+ctx.add_basemap(
+    ax,
+    source=ctx.providers.CartoDB.PositronNoLabels,
+    crs=pop_grid.crs
+)
+
+ax.set_axis_off()
+plt.show()
