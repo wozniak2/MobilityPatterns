@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Jan  2 11:33:42 2026
-
+The script aggregates weighted workplaces obtained from small enterprises registry and 
+GHSL data (non-res) to hexagonal grid
 @author: wozni
 """
 import pandas as pd
