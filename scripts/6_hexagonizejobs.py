@@ -7,12 +7,11 @@ Created on Fri Jan  2 11:33:42 2026
 import pandas as pd
 import geopandas as gpd
 import os
-
 import matplotlib.pyplot as plt
-
 import h3pandas
 
-
+## adjust your path
+os.chdir("C:\\Users\\wozni\\Google Drive\\UAM\\HUB\\MobilityPatterns\\Data")
 # import neccessary files --> distributejobs.py
 
 workplace_grid = gpd.read_file('workplace_grid.gpkg')
@@ -25,18 +24,33 @@ workplace_grid = workplace_grid.to_crs(poz.crs)
 # Resample to H3 cells
 resolution=7
 hex_h3 = poz.h3.polyfill_resample(resolution)
+hex_h3 = hex_h3.reset_index(drop=True)
+hex_h3["hex_id"] = hex_h3.index
 
 # match crs
-hex_jobs = hex_h3.to_crs(poz.crs)
+# hex_jobs = hex_h3.to_crs(poz.crs)
 
 
 joined = gpd.sjoin(
     workplace_grid,
-    hex_jobs[["hex_id", "geometry"]],
+    hex_h3[["hex_id", "geometry"]],
     how="left",
     predicate="within"
 )
 
+# aggregate values per hex
+hex_sum = (
+    joined
+    .groupby("hex_id", as_index=False)["raster_values"]
+    .sum()
+)
+
+# join back to hex grid
+hex_h3 = hex_h3.merge(hex_sum, on="hex_id", how="left")
+hex_h3["raster_values"] = hex_h3["raster_values"].fillna(0)
+hex_h3 = hex_h3.rename(columns={"raster_values": "jobs_summed"})
+
+hex_h3.plot()
 
 # initialize plot
 fig, (ax1, ax2) = plt.subplots(1,2, figsize=(15,15))
