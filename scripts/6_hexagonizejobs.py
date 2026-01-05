@@ -9,11 +9,15 @@ import geopandas as gpd
 import os
 import matplotlib.pyplot as plt
 import h3pandas
-
+import osmnx as ox
+cf = '["highway"~"primary|secondary|motorway|trunk"]'
+G = ox.graph_from_place('Poznan, Poland', network_type="drive", custom_filter=cf)
 ## adjust your path
 os.chdir("C:\\Users\\wozni\\Google Drive\\UAM\\HUB\\MobilityPatterns\\Data")
 # import neccessary files --> distributejobs.py
 
+
+nodes, streets = ox.graph_to_gdfs(G)
 workplace_grid = gpd.read_file('workplace_grid.gpkg')
 poz = gpd.read_file('boundary.gpkg') ## core city
 
@@ -38,40 +42,46 @@ joined = gpd.sjoin(
     predicate="within"
 )
 
+joined["index_right"].isna().sum()
+
 # aggregate values per hex
 hex_sum = (
     joined
-    .groupby("hex_id", as_index=False)["raster_values"]
+    .groupby("hex_id", as_index=False)["workplaces"]
     .sum()
 )
 
 # join back to hex grid
 hex_h3 = hex_h3.merge(hex_sum, on="hex_id", how="left")
-hex_h3["raster_values"] = hex_h3["raster_values"].fillna(0)
-hex_h3 = hex_h3.rename(columns={"raster_values": "jobs_summed"})
-
+#hex_h3["workplaces"] = hex_h3["workplaces"].fillna(0)
+# hex_h3 = hex_h3.rename(columns={"workplaces": "jobs_summed"})
+hex_h3['workplaces'].sum()
 hex_h3.plot()
 
 # initialize plot
-fig, (ax1, ax2) = plt.subplots(1,2, figsize=(15,15))
-# 1. Change the background color of the Figure (the canvas holding everything)
-fig.set_facecolor('black') 
+import contextily as ctx
 
-# 2. Change the background color of the first subplot (ax1)
-ax1.set_facecolor('black')
 
-# 3. Change the background color of the second subplot (ax2)
-ax2.set_facecolor('black')
+fig, ax = plt.subplots(figsize=(8, 8))
 
-# 4. Plot layers
-df.plot(ax=ax1, column='total', cmap='OrRd', linewidth=0.2, alpha=0.6)
-gdf_cut.plot(ax=ax1, markersize=0.01, color = 'red', alpha=0.1)
-ax1.title.set_text('REGON-delegatury + geocoded CEIDG')
-ax1.title.set_color('white')
+hex_h3.plot(
+    column="workplaces",
+    ax=ax,
+    scheme="NaturalBreaks",
+    k=6,
+    cmap="viridis",
+    linewidth=0,
+    alpha=0.5,
+    legend=True,
+    legend_kwds={"fmt": "{:.0f}"} 
+)
+poz.plot(ax=ax, facecolor='none')
+streets.plot(ax=ax, ec='black', linewidth=0.1)
+ctx.add_basemap(
+    ax,
+    source=ctx.providers.CartoDB.PositronNoLabels,
+    crs=hex_h3.crs
+)
 
-poz_rep.plot(ax=ax2,ec='white')
-#gdf_cut.plot(ax=ax2, markersize=0.01, color = 'red', alpha=0.1)
-ghs_rep.plot(ax=ax2, alpha=0.5, cmap='OrRd', column = 'raster_values')
-
-ax2.title.set_text('hexagon grid (GHSL) + geocoded CEIDG')
-ax2.title.set_color('white')
+ax.set_axis_off()
+plt.show()
