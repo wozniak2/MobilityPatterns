@@ -53,6 +53,9 @@ final_grid <- left_join(pop_grid, aggregated_data, by = "grid_id")
 # remove zeros for better visu
 final_grid <- final_grid %>% mutate_at(c('total_workplaces'), ~na_if(., 0))
 
+# write final grid to file
+st_write(final_grid, "pop_workplaces_grid.gpkg", append = FALSE)
+
 ## plot population and workplaces
 ggplot(data = final_grid) +
   geom_sf(aes(geometry = geom, fill = total_workplaces), color=NA, lwd = 0.1, alpha = 1) +
