@@ -56,3 +56,7 @@ ggplot()+
   geom_sf(data = final_grid, aes(fill = total_value), color="lightgrey", lwd = 0.1, alpha = 0.7) +
   geom_sf(data = ap, fill = NA, lwd = 0.5) +
   scale_fill_viridis_c(begin = 0.1, end = 1, na.value = "transparent")
+
+
+## export population grid
+st_write(final_grid, "popgrid.gpkg")
