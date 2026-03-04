@@ -1,11 +1,14 @@
 library(sf)
+library(readr)
 
 setwd("/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 
 # boundry for Poznan agglomeration
 ap <- st_read("ap.gpkg")
+# population data
+pop_geocoded <- read_csv("pop_geocoded.csv")
 
-# Remove rows with any missing values
+# Remove rows with any missing values 
 pop_geocoded <- pop_geocoded[complete.cases(pop_geocoded$g_dlug), ]
 
 ## sf object
@@ -14,8 +17,6 @@ pop_geocoded <- st_as_sf(
   coords = c("g_dlug", "g_szer"),
   crs = 4326
 )
-
-
 
 
 # Get the bounding box for ap
