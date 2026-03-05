@@ -19,12 +19,19 @@ sum(OD_sf$commuters, na.rm=T)
 # correlation between population size and OD flows
 cor(ff_grid$population, ff_grid$commuters, use = "complete.obs")
 
-
+# add Poznan
 pop_wp_flows$home_name[is.na(pop_wp_flows$home_name)] <- "Poznan"
-# Normalize the 'Value' column by 'Group'
+
+# assign probabilities based on population and location
 df_norm <- pop_wp_flows %>%
   group_by(home_name) %>%
   mutate(prob = population / sum(population, na.rm = TRUE))
 
+# assign origins based on commuters numbers and probabilities
+origins_distributed <- df_norm %>%
+  group_by(home_name) %>%
+  mutate(com_num = round(prob * mean(commuters, na.rm = TRUE)), digits = 0)
 
-sum(pop_wp_flows$population)
+
+
+
