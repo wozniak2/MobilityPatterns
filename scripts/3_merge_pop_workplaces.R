@@ -1,6 +1,7 @@
 library(sf)
 library(dplyr) 
 library(ggnewscale)
+library(patchwork)
 #library(terra)
 
 setwd("/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
@@ -13,6 +14,9 @@ wp_grid <- st_read("workplace_grid.gpkg")
 ap <- st_read("ap.gpkg") ## city
 poz <- st_read("poz.gpkg") ## donut
 
+# OD flows
+OD_flows <- read.csv("OD_flows.csv")
+
 # merging, cleaning
 boundaries <- st_union(ap, poz, is_coverage = TRUE) %>%
   st_make_valid()
@@ -20,6 +24,10 @@ boundaries <- st_union(ap, poz, is_coverage = TRUE) %>%
 boundaries <- st_union(boundaries)
 
 colnames(pop_grid)[2] <- "population"
+
+# OD flows + sf
+# join
+OD_sf <- left_join(ap, OD_flows, by = "JPT_ID")
 
 # some osm feature
 bbox <- st_bbox(pop_grid)
@@ -59,12 +67,11 @@ final_grid <- final_grid %>% mutate_at(c('population'), ~na_if(., 0))
 st_write(final_grid, "pop_workplaces_grid.gpkg", append = FALSE)
 
 ## plot population and workplaces
-ggplot(data = final_grid) +
-  
-  geom_sf(aes(geometry = geom, fill = population), color="transparent", alpha = 0.8) +
+p1 <- ggplot(data = final_grid) +
+  geom_sf(aes(geometry = geom, fill = population), color="transparent", alpha = 0.7) +
   scale_fill_viridis_c(begin = 0.1, end = 1, option = "plasma", na.value = NA) +
   ggnewscale::new_scale_fill() +
-  geom_sf(aes(geometry = geom, fill = total_workplaces), color="transparent", alpha = 0.8) +
+  geom_sf(aes(geometry = geom, fill = total_workplaces), color="transparent", alpha = 1) +
   scale_fill_viridis_c(begin = 0.1, end = 1, na.value = NA) +
   geom_sf(data = ap, fill = NA, lwd = 0.5) +
   geom_sf(data = intersected_roads, lwd = 0.3, color = "yellow", alpha = 1) +
@@ -77,3 +84,19 @@ ggplot(data = final_grid) +
         plot.background = element_rect(fill = "transparent",
                                        color = NA))
   
+
+p2 <- ggplot(data = OD_sf) +
+  geom_sf(aes(fill = commuters), lwd = 0.1, alpha = 0.7) +
+  scale_fill_viridis_c(begin = 0.2, end = 1, option = "plasma", na.value = "transparent") +
+  theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent"),
+        legend.box.background = element_rect(fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.background = element_rect(fill = "transparent",
+                                       color = NA))
+
+
+
+p1 + p2
