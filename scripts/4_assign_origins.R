@@ -33,5 +33,21 @@ origins_distributed <- df_norm %>%
   mutate(com_num = round(prob * mean(commuters, na.rm = TRUE)), digits = 0)
 
 
+# Plot distributed origins
+ggplot(data = origins_distributed) +
+  geom_sf(aes(fill = com_num), color="black", lwd = 0.1, alpha = 0.9) +
+  scale_fill_viridis_c(begin = 0.1, end = 1, option = "plasma", na.value = "transparent") +
+  theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent"),
+        legend.box.background = element_rect(fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.background = element_rect(fill = "transparent",
+                                       color = NA))
 
+# how many non-empty origins point
+sum(origins_distributed$com_num > 0, na.rm = TRUE) 
 
+# write final grid to file
+st_write(origins_distributed, "origins_distributed.gpkg", append = FALSE)
