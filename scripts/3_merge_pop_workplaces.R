@@ -42,6 +42,7 @@ intersected_roads <- st_intersection(osm_highways$osm_lines, boundaries)
 # Spatially join the grids
 data_joined <- st_join(wp_grid, pop_grid, join = st_within)
 
+
 # Aggregate the 'value' variable 'id'
 # Sum the 'value' for all points within each grid cell
 aggregated_data <- data_joined %>%
@@ -57,7 +58,9 @@ aggregated_data <- st_drop_geometry(aggregated_data)
 # Use a standard left_join from dplyr to merge the results
 final_grid <- left_join(pop_grid, aggregated_data, by = "grid_id")
 
-
+## add commuters
+OD_sf <- st_transform(OD_sf, st_crs(final_grid))
+ff_grid <- st_join(final_grid, OD_sf)
 
 # remove zeros for better visu
 final_grid <- final_grid %>% mutate_at(c('total_workplaces'), ~na_if(., 0))
@@ -86,7 +89,7 @@ p1 <- ggplot(data = final_grid) +
   
 
 p2 <- ggplot(data = OD_sf) +
-  geom_sf(aes(fill = commuters), lwd = 0.1, alpha = 0.7) +
+  geom_sf(aes(fill = commuters), color="transparent", lwd = 0.1, alpha = 0.7) +
   scale_fill_viridis_c(begin = 0.2, end = 1, option = "plasma", na.value = "transparent") +
   theme_bw() +
   theme(legend.background = element_rect(fill = "transparent"),
@@ -98,5 +101,9 @@ p2 <- ggplot(data = OD_sf) +
                                        color = NA))
 
 
-
+## plot all together
 p1 + p2
+
+
+# correlation between population size and OD flows
+cor(ff_grid$population, ff_grid$commuters, use = "complete.obs")
