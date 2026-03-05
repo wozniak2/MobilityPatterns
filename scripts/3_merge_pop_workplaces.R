@@ -50,19 +50,30 @@ aggregated_data <- st_drop_geometry(aggregated_data)
 final_grid <- left_join(pop_grid, aggregated_data, by = "grid_id")
 
 
+
 # remove zeros for better visu
 final_grid <- final_grid %>% mutate_at(c('total_workplaces'), ~na_if(., 0))
+final_grid <- final_grid %>% mutate_at(c('population'), ~na_if(., 0))
 
 # write final grid to file
 st_write(final_grid, "pop_workplaces_grid.gpkg", append = FALSE)
 
 ## plot population and workplaces
 ggplot(data = final_grid) +
-  geom_sf(aes(geometry = geom, fill = total_workplaces), color=NA, lwd = 0.1, alpha = 1) +
-  scale_fill_viridis_c(begin = 0.2, end = 1, na.value = "transparent") +
-  new_scale_fill() +
-  geom_sf(aes(geometry = geom, fill = population), color="lightgrey", lwd = 0.1, alpha = 0.5) +
-  scale_fill_viridis_c(begin = 0, end = 1, option = "plasma") +
+  
+  geom_sf(aes(geometry = geom, fill = population), color="transparent", alpha = 0.8) +
+  scale_fill_viridis_c(begin = 0.1, end = 1, option = "plasma", na.value = NA) +
+  ggnewscale::new_scale_fill() +
+  geom_sf(aes(geometry = geom, fill = total_workplaces), color="transparent", alpha = 0.8) +
+  scale_fill_viridis_c(begin = 0.1, end = 1, na.value = NA) +
   geom_sf(data = ap, fill = NA, lwd = 0.5) +
-  geom_sf(data = intersected_roads, lwd = 0.3, color = "yellow", alpha = 0.7)
+  geom_sf(data = intersected_roads, lwd = 0.3, color = "yellow", alpha = 1) +
+  theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent"),
+        legend.box.background = element_rect(fill = "transparent"),
+        panel.background = element_rect(fill = "transparent"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.background = element_rect(fill = "transparent",
+                                       color = NA))
   
