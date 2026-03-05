@@ -26,8 +26,9 @@ boundaries <- st_union(boundaries)
 colnames(pop_grid)[2] <- "population"
 
 # OD flows + sf
-# join
+# join and write 
 OD_sf <- left_join(ap, OD_flows, by = "JPT_ID")
+st_write(OD_sf, "OD_sf.gpkg", append = FALSE)
 
 # some osm feature
 bbox <- st_bbox(pop_grid)
@@ -58,15 +59,16 @@ aggregated_data <- st_drop_geometry(aggregated_data)
 # Use a standard left_join from dplyr to merge the results
 final_grid <- left_join(pop_grid, aggregated_data, by = "grid_id")
 
-## add commuters
+## add commuters and write
 OD_sf <- st_transform(OD_sf, st_crs(final_grid))
 ff_grid <- st_join(final_grid, OD_sf)
+st_write(ff_grid, "pop_wp_flows_grid.gpkg", append = FALSE)
 
 # remove zeros for better visu
 final_grid <- final_grid %>% mutate_at(c('total_workplaces'), ~na_if(., 0))
 final_grid <- final_grid %>% mutate_at(c('population'), ~na_if(., 0))
 
-# write final grid to file
+# write final grids to file
 st_write(final_grid, "pop_workplaces_grid.gpkg", append = FALSE)
 
 ## plot population and workplaces
@@ -89,7 +91,7 @@ p1 <- ggplot(data = final_grid) +
   
 
 p2 <- ggplot(data = OD_sf) +
-  geom_sf(aes(fill = commuters), color="transparent", lwd = 0.1, alpha = 0.7) +
+  geom_sf(aes(fill = commuters), color="black", lwd = 0.1, alpha = 0.7) +
   scale_fill_viridis_c(begin = 0.2, end = 1, option = "plasma", na.value = "transparent") +
   theme_bw() +
   theme(legend.background = element_rect(fill = "transparent"),
@@ -105,5 +107,6 @@ p2 <- ggplot(data = OD_sf) +
 p1 + p2
 
 
-# correlation between population size and OD flows
-cor(ff_grid$population, ff_grid$commuters, use = "complete.obs")
+
+
+
