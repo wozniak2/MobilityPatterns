@@ -65,7 +65,7 @@ workplace_grid <- st_make_grid(bbox, c(200, 200), what = "polygons") %>%
   st_as_sf() %>%
   # Assign a unique ID to each grid cell
   mutate(grid_id = row_number())
-buildings <- st_read("./bdot_poz/PL.PZGiK.308.BDOT10k.3064__OT_BUBD_A.gpkg")
+buildings <- st_read("./work_bdot.gpkg")
 buildings <- buildings %>% filter(!FUNKCJAOGOLNABUDYNKU %in% c("budynki mieszkalne",
                                                           "budynki produkcyjne, usługowe i gospodarcze dla rolnictwa",
                                                           "budynki transportu i łączności"))
@@ -92,7 +92,7 @@ workplace_grid <- st_intersection(workplace_grid, boundary)
 workplace_grid <-  workplace_grid %>% subset(select = c("grid_id", "bdot_area", "point_count"))
 workplace_grid[is.na(workplace_grid)] <- 0
 workplace_grid$bdot_weight <- workplace_grid$bdot_area / sum(workplace_grid$bdot_area)
-
+workplace_grid <- st_make_valid(workplace_grid)
 #OPTIONAL: Plot to check
 #tm_shape(filter(workplace_grid, nonres_volume >0)) + tm_polygons(fill = "nonres_volume", col_alpha = 0, palette = "Reds")
 
@@ -133,4 +133,4 @@ workplace_grid$workplaces <- ((workplace_grid$bdot_weight * (1-sme_share)) +
 st_write(workplace_grid, "workplace_grid.gpkg", append = FALSE)
 
 #OPTIONAL: Plot to check
-#tm_shape(filter(workplace_grid, workplaces >10)) + tm_polygons(fill = "workplaces", col_alpha = 0, fill_alpha = 0.5, palette = "Reds")
+tm_shape(filter(workplace_grid, workplaces >10)) + tm_polygons(fill = "workplaces", col_alpha = 0, fill_alpha = 0.5, palette = "Reds")
