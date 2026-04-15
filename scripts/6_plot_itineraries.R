@@ -53,8 +53,8 @@ pt_iti <- ggplot(df_pit) +
     legend.key = element_rect(fill = "#1a1a1a"),
     
     text = element_text(color = "white"),
-    axis.text = element_text(color = "white"),
-    axis.title = element_text(color = "white"),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
     
     legend.title = element_text(size = 14, color = "white"),
     legend.text  = element_text(size = 14, color = "white"),
@@ -78,8 +78,8 @@ car_iti <- ggplot(df_cit) +
     legend.key = element_rect(fill = "#1a1a1a"),
     
     text = element_text(color = "white"),
-    axis.text = element_text(color = "white"),
-    axis.title = element_text(color = "white"),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
     
     legend.title = element_text(size = 14, color = "white"),
     legend.text  = element_text(size = 14, color = "white"),
