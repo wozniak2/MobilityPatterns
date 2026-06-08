@@ -1,9 +1,13 @@
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
 library(sf)
 library(readr)
+library(terra)
 
 setwd("/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 
-# boundry for Poznan agglomeration
+# boundary for Poznan agglomeration
 ap <- st_read("ap.gpkg")
 # population data
 pop_geocoded <- read_csv("pop_geocoded.csv")
@@ -18,15 +22,14 @@ pop_geocoded <- st_as_sf(
   crs = 4326
 )
 
-
 # Get the bounding box for ap
 bbox <- st_bbox(ap)
-
+bbox <- st_transform(bbox, crs = 2180)
 
 # Create a polygon grid that covers the extent of the points
-# n argument defines the dimensions of the grid
+# cellsize argument defines the dimensions of the grid (in meters)
 
-grid_poly <- st_make_grid(bbox, n=c(100,100), what = "polygons") %>%
+grid_poly <- st_make_grid(bbox, c(200, 200), what = "polygons") %>%
   st_as_sf() %>%
   # Assign a unique ID to each grid cell
   mutate(grid_id = row_number())
@@ -50,6 +53,18 @@ aggregated_data <- st_drop_geometry(aggregated_data)
 # merge the results
 final_grid <- left_join(grid_poly, aggregated_data, by = "grid_id")
 
+# join with municipality data & clean-up
+ap <- st_transform(ap, st_crs(final_grid))
+final_grid <- st_intersection(final_grid, ap)
+final_grid <- rename(final_grid, c(working_age_pop = total_value, municipality = JPT_NAZWA_)) %>% 
+  subset(select = c("grid_id", "working_age_pop", "point_count", "municipality")) #Make human-readable & clean
+final_grid$municipality_short <- sub(" - ", "_", final_grid$municipality)
+final_grid$municipality_short <- sub("obszar wiejski", "W", final_grid$municipality_short)
+final_grid$municipality_short <- sub("miasto", "M", final_grid$municipality_short)
+final_grid$municipality_short <- sub("_gmina wiejska", "", final_grid$municipality_short)
+final_grid$municipality_short <- sub("_gmina miejska", "", final_grid$municipality_short)
+final_grid$municipality_short <- sub(" ", "_", final_grid$municipality_short)
+
 ## plot population
 ggplot()+
 #  geom_sf(data = pop_geocoded, aes(color = WIEK_26_DO_60), size = 0.3, alpha = 0.2) +
@@ -59,4 +74,4 @@ ggplot()+
 
 
 ## export population grid
-st_write(final_grid, "popgrid.gpkg")
+st_write(final_grid, "pop_grid.gpkg", append = FALSE)
