@@ -68,7 +68,7 @@ final_grid$municipality_short <- sub(" ", "_", final_grid$municipality_short)
 ## plot population
 ggplot()+
 #  geom_sf(data = pop_geocoded, aes(color = WIEK_26_DO_60), size = 0.3, alpha = 0.2) +
-  geom_sf(data = final_grid, aes(fill = total_value), color="lightgrey", lwd = 0.1, alpha = 0.7) +
+  geom_sf(data = final_grid, aes(fill = working_age_pop), color="lightgrey", lwd = 0.1, alpha = 0.7) +
   geom_sf(data = ap, fill = NA, lwd = 0.5) +
   scale_fill_viridis_c(begin = 0.1, end = 1, na.value = "transparent")
 
