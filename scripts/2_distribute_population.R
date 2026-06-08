@@ -58,6 +58,7 @@ ap <- st_transform(ap, st_crs(final_grid))
 final_grid <- st_intersection(final_grid, ap)
 final_grid <- rename(final_grid, c(working_age_pop = total_value, municipality = JPT_NAZWA_)) %>% 
   subset(select = c("grid_id", "working_age_pop", "point_count", "municipality")) #Make human-readable & clean
+
 final_grid$municipality_short <- sub(" - ", "_", final_grid$municipality)
 final_grid$municipality_short <- sub("obszar wiejski", "W", final_grid$municipality_short)
 final_grid$municipality_short <- sub("miasto", "M", final_grid$municipality_short)
