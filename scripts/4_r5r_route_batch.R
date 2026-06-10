@@ -1,12 +1,10 @@
-setwd("/home/adam/Dokumenty/commuting_patterns")
+#setwd("/home/adam/Dokumenty/commuting_patterns")
 
-library(elevatr)
-library(rJavaEnv)
+rJavaEnv::use_java(version = "21")
 library(dplyr)
 library(r5r)
 library(sf)
 library(tidyr)
-library(tmap)
 
 
 # =============================================================================
@@ -36,15 +34,15 @@ destinations$id <- seq_len(nrow(destinations))
 # List of municipality short names – must match values in the
 # municipality_short column of pop_grid.gpkg / workplace_grid.gpkg
 
-unique(pop_grid$municipality)
+#unique(origins$municipality)
 
-municipalities <- c(unique(pop_grid$municipality_short))
+municipalities <- c(unique(origins$municipality_short))
 
 workplace_cutoff <- 150
 pop_cutoff       <- 30
 
 # Output folder for .gpkg files
-output_dir <- "./itineraries"
+output_dir <- "./itineraries2"
 dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
 
@@ -53,7 +51,6 @@ dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 # BUILD NETWORK ONCE
 # =============================================================================
 
-use_java(version = "21")
 options(java.parameters = "-Xmx16G")
 
 message("Building r5r network ...")
