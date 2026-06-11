@@ -97,4 +97,5 @@ car_iti <- ggplot(df_plot_car) +
   )
 
 # merge plots
+require(patchwork)
 pt_iti + car_iti
