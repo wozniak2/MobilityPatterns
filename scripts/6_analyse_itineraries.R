@@ -109,7 +109,7 @@ pop_grid   <- st_read("pop_grid.gpkg", quiet = TRUE)   # input CRS: World Mollwe
 pop_grid_r <- st_transform(pop_grid, st_crs(diff_sf))  # reproject to EPSG:2180
 
 nearest_idx     <- st_nearest_feature(diff_sf, pop_grid_r)
-diff_sf$ghs_pop <- pop_grid_r$ghs_pop[nearest_idx]
+diff_sf$working_age_pop <- pop_grid_r$working_age_pop[nearest_idx]
 
 # ── 6. Extract car-dominated zones ───────────────────────────────────────────
 car_zones <- diff_sf %>% filter(lisa_type == "High-High (car cluster)")
@@ -151,28 +151,28 @@ car_zones <- car_zones %>%
   )))
 
 # ── 8. Investment priority — population × distance × frequency ───────────────
-pop_threshold <- quantile(pop_grid_r$ghs_pop, 0.80, na.rm = TRUE)
+pop_threshold <- quantile(pop_grid_r$working_age_pop, 0.80, na.rm = TRUE)
 cat("Population threshold (80th pct):", pop_threshold, "\n")
 
 car_zones <- car_zones %>%
   mutate(
     priority = case_when(
       # Populated + no physical access → build new infrastructure
-      ghs_pop >= pop_threshold &
+      working_age_pop >= pop_threshold &
         pt_accessibility %in% c("Very poor (> 1km)", "Poor (600m–1km)")        ~ "High priority — no nearby stop",
       
       # Populated + stop nearby but infrequent → improve service frequency
-      ghs_pop >= pop_threshold &
+      working_age_pop >= pop_threshold &
         pt_accessibility %in% c("Moderate (300–600m)", "Good (< 300m)") &
         freq_service %in% c("No service", "Low frequency")                     ~ "High priority — infrequent service",
       
       # Populated + moderate access + moderate frequency → incremental upgrade
-      ghs_pop >= pop_threshold &
+      working_age_pop >= pop_threshold &
         pt_accessibility == "Moderate (300–600m)" &
         freq_service == "Medium frequency"                                      ~ "Medium priority",
       
       # Populated + good access + frequent service → behavioural/modal gap
-      ghs_pop >= pop_threshold &
+      working_age_pop >= pop_threshold &
         pt_accessibility == "Good (< 300m)" &
         freq_service %in% c("Medium frequency", "High frequency")              ~ "Car preference gap",
       
@@ -186,7 +186,9 @@ car_zones <- car_zones %>%
     ))
   )
 
+
 # Remove pixels inside Poznań city boundary (focus on suburban gaps)
+poz_r <- st_transform(poz, st_crs(car_zones))
 outside   <- lengths(st_intersects(car_zones, st_union(poz_r))) == 0
 car_zones <- car_zones[outside, ]
 
@@ -196,7 +198,7 @@ print(table(car_zones$priority))
 # ── 9. Diagnostic heatmap — frequency vs distance ────────────────────────────
 car_zones %>%
   st_drop_geometry() %>%
-  filter(ghs_pop >= pop_threshold) %>%
+  filter(working_age_pop >= pop_threshold) %>%
   count(pt_accessibility, freq_service) %>%
   ggplot(aes(x = freq_service, y = pt_accessibility, fill = n)) +
   geom_tile(colour = "grey30") +
@@ -234,7 +236,7 @@ osm_bw <- app(osm_tiles, fun = function(x) {
 osm_bw <- c(osm_bw, osm_bw, osm_bw)
 
 # Fetch primary, secondary and tertiary roads from OSM
-roads_lines <- opq(bbox = st_bbox(car_zones_wgs)) %>%
+roads_lines <- opq(bbox = st_bbox(car_zones_wgs), timeout = 180) %>%
   add_osm_feature(key = "highway", value = c("primary", "secondary", "tertiary")) %>%
   osmdata_sf() %>%
   .$osm_lines %>%
@@ -292,4 +294,4 @@ ggplot() +
   ) +
   guides(color = guide_legend(override.aes = list(size = 5)))
 
-  
+ggsave("Fig_PT_investment_priority.png", width = 12, height = 9, dpi = 300)

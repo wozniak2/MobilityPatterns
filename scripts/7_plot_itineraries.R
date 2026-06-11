@@ -99,3 +99,5 @@ car_iti <- ggplot(df_plot_car) +
 # merge plots
 require(patchwork)
 pt_iti + car_iti
+
+ggsave("Fig_cars_pt_itineraries.png", width = 12, height = 9, dpi = 300)
