@@ -4,7 +4,7 @@ library(ggplot2)
 library(terra)
 library(patchwork)
 
-# !!! This script requires the 'results' object produced by '8_iterate_it.R' !!!
+# !!! This script requires the 'results' object produced by '5_read_itineraries.R' !!!
 
 setwd("/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 

@@ -7,7 +7,7 @@ library(tidyterra)
 library(terra)
 library(osmdata)
 
-# !!! This script requires the 'results' object produced by '8_iterate_it.R' !!!
+# !!! This script requires the 'results' object produced by '5_read_itineraries.R' !!!
 
 # ── 1. Combine counties & compute log-frequency difference ───────────────────
 df_cit <- map_dfr(results, ~ .x$df_cit)
