@@ -31,7 +31,7 @@ itineraries_destinations <- st_as_sf(itineraries_pop_weights, coords = c("to_lon
 st_crs(itineraries_destinations) <- st_crs(pop_grid)
 workplace_grid <- workplace_grid %>% select(workplaces)
 itineraries_weights <- st_join(itineraries_destinations, workplace_grid, join = st_intersects)
+itineraries_weights <- itineraries_weights %>% filter(!is.na(working_age_pop))
 itineraries_weights <- as.data.frame(st_drop_geometry(itineraries_weights))
 
-write.csv(itineraries_weights, file = "itineraries_weights.csv")
-
+write.csv(itineraries_weights, file = "itineraries_weights.csv", append = FALSE)
