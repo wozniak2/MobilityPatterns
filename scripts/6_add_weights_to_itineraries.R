@@ -19,6 +19,7 @@ library(data.table)
 library(dplyr)
 library(sf)
 
+setwd("/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 #Read & prepare grids
 pop_grid <- st_read("pop_grid.gpkg")
 workplace_grid <- st_read("workplace_grid.gpkg")
