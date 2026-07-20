@@ -31,25 +31,38 @@ pop_grid <- setDT(pop_grid)[, .SD[which.max(area)], by=grid_id] #Remove cells wi
 pop_grid <- st_as_sf(pop_grid)
 
 #Read & join itineraries
-itineraries_combined <- pt_itineraries  # already in environment
+# Join PT and car by OD pair, then weight
+od_combined <- inner_join(
+  pt_itineraries  |> st_drop_geometry() |>
+    select(from_id, to_id, from_lon, from_lat, to_lon, to_lat,
+           county, total_duration, total_distance, mode, segment),
+  car_itineraries |> st_drop_geometry() |>
+    select(from_id, to_id, total_duration, total_distance) |>
+    rename(car_duration = total_duration,
+           car_distance = total_distance),
+  by = c("from_id", "to_id")
+) |>
+  mutate(time_ratio = total_duration / car_duration)
 
-# Origins: population weight
-itineraries_pop <- itineraries_combined |>
+# Now assign weights once — origins
+itineraries_origins <- od_combined |>
+  st_as_sf(coords = c("from_lon", "from_lat"), crs = 4326) |>
   st_transform(st_crs(pop_grid)) |>
   st_join(pop_grid |> select(grid_id, working_age_pop),
           join = st_intersects) |>
   st_drop_geometry() |>
   filter(!is.na(working_age_pop))
 
-cat("After pop join:", nrow(itineraries_pop), "rows\n")
+cat("After pop join:", nrow(itineraries_origins), "rows\n")
 
-# Destinations: workplace weight
-itineraries_weights <- itineraries_pop |>
+# Destinations
+itineraries_weights <- itineraries_origins |>
   st_as_sf(coords = c("to_lon", "to_lat"), crs = 4326) |>
   st_transform(st_crs(workplace_grid)) |>
   st_join(workplace_grid |> select(workplaces),
           join = st_intersects) |>
-  st_drop_geometry()
+  st_drop_geometry() |>
+  filter(!is.na(workplaces))
 
 cat("After workplace join:", nrow(itineraries_weights), "rows\n")
 
