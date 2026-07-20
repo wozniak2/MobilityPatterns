@@ -67,6 +67,15 @@ results <- pmap(
 
 names(results) <- matched$county
 
-# ── 0. Combine all counties into single data frames ───────────────────────────
-# df_cit <- map_dfr(results, ~ .x$df_cit, .id = "county")
-# df_pit <- map_dfr(results, ~ .x$df_pit, .id = "county")
+# Read raw itineraries for weight joining (geometry preserved)
+pt_itineraries <- matched |>
+  pmap(\(county, pt_path, car_path) {
+    st_read(pt_path, quiet = TRUE) |> mutate(county = county)
+  }) |>
+  bind_rows()
+
+car_itineraries <- matched |>
+  pmap(\(county, pt_path, car_path) {
+    st_read(car_path, quiet = TRUE) |> mutate(county = county)
+  }) |>
+  bind_rows()
