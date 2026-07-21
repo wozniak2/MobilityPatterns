@@ -31,21 +31,39 @@ pop_grid <- setDT(pop_grid)[, .SD[which.max(area)], by=grid_id] #Remove cells wi
 pop_grid <- st_as_sf(pop_grid)
 
 #Read & join itineraries
-# Join PT and car by OD pair, then weight
-od_combined <- inner_join(
-  pt_itineraries  |> st_drop_geometry() |>
-    select(from_id, to_id, from_lon, from_lat, to_lon, to_lat,
-           county, total_duration, total_distance, mode, segment),
-  car_itineraries |> st_drop_geometry() |>
-    select(from_id, to_id, total_duration, total_distance) |>
-    rename(car_duration = total_duration,
-           car_distance = total_distance),
-  by = c("from_id", "to_id")
-) |>
-  mutate(time_ratio = total_duration / car_duration)
+# 1. Summarise PT to one row per OD pair
+pt_od <- pt_itineraries |>
+  st_drop_geometry() |>
+  group_by(from_id, to_id, from_lon, from_lat, to_lon, to_lat, county) |>
+  summarise(
+    total_duration = min(total_duration, na.rm = TRUE),
+    total_distance = min(total_distance, na.rm = TRUE),
+    n_transfers    = max(segment, na.rm = TRUE) - 1,
+    has_rail       = any(mode == "RAIL"),
+    modes          = paste(unique(mode), collapse = "+"),
+    .groups = "drop"
+  )
 
-# Now assign weights once — origins
-itineraries_origins <- od_combined |>
+# 2. Summarise car to one row per OD pair
+car_od <- car_itineraries |>
+  st_drop_geometry() |>
+  group_by(from_id, to_id) |>
+  summarise(
+    car_duration = min(total_duration, na.rm = TRUE),
+    car_distance = min(total_distance, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# 3. Join PT and car, compute ratios
+od_combined <- inner_join(pt_od, car_od, by = c("from_id", "to_id")) |>
+  mutate(
+    time_ratio = total_duration / car_duration,
+    dist_ratio = total_distance / car_distance
+  )
+
+
+# 4. Origin weight — population
+itineraries_pop <- od_combined |>
   st_as_sf(coords = c("from_lon", "from_lat"), crs = 4326) |>
   st_transform(st_crs(pop_grid)) |>
   st_join(pop_grid |> select(grid_id, working_age_pop),
@@ -53,10 +71,10 @@ itineraries_origins <- od_combined |>
   st_drop_geometry() |>
   filter(!is.na(working_age_pop))
 
-cat("After pop join:", nrow(itineraries_origins), "rows\n")
+cat("After pop join:", nrow(itineraries_pop), "rows\n")
 
-# Destinations
-itineraries_weights <- itineraries_origins |>
+# 5. Destination weight — workplaces
+itineraries_weights <- itineraries_pop |>
   st_as_sf(coords = c("to_lon", "to_lat"), crs = 4326) |>
   st_transform(st_crs(workplace_grid)) |>
   st_join(workplace_grid |> select(workplaces),

@@ -79,3 +79,6 @@ car_itineraries <- matched |>
     st_read(car_path, quiet = TRUE) |> mutate(county = county)
   }) |>
   bind_rows()
+
+cat(sprintf("PT rows : %d\nCar rows: %d\n",
+            nrow(pt_itineraries), nrow(car_itineraries)))

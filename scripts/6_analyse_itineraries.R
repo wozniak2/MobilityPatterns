@@ -109,7 +109,12 @@ pop_grid   <- st_read("pop_grid.gpkg", quiet = TRUE)   # input CRS: World Mollwe
 pop_grid_r <- st_transform(pop_grid, st_crs(diff_sf))  # reproject to EPSG:2180
 
 nearest_idx     <- st_nearest_feature(diff_sf, pop_grid_r)
-diff_sf$working_age_pop <- pop_grid_r$working_age_pop[nearest_idx]
+#diff_sf$working_age_pop <- pop_grid_r$working_age_pop[nearest_idx]
+# With intersection join to match add_weights logic:
+diff_sf <- diff_sf |>
+  st_join(pop_grid |> st_transform(st_crs(diff_sf)) |>
+            select(working_age_pop),
+          join = st_intersects)
 
 # ── 6. Extract car-dominated zones ───────────────────────────────────────────
 car_zones <- diff_sf %>% filter(lisa_type == "High-High (car cluster)")
@@ -188,6 +193,7 @@ car_zones <- car_zones %>%
 
 
 # Remove pixels inside Poznań city boundary (focus on suburban gaps)
+poz <- st_read("poz.gpkg") ## donut
 poz_r <- st_transform(poz, st_crs(car_zones))
 outside   <- lengths(st_intersects(car_zones, st_union(poz_r))) == 0
 car_zones <- car_zones[outside, ]
@@ -236,7 +242,8 @@ osm_bw <- app(osm_tiles, fun = function(x) {
 osm_bw <- c(osm_bw, osm_bw, osm_bw)
 
 # Fetch primary, secondary and tertiary roads from OSM
-roads_lines <- opq(bbox = st_bbox(car_zones_wgs), timeout = 180) %>%
+osmdata::set_overpass_url("https://overpass-api.de/api/interpreter")
+roads_lines <- opq(bbox = st_bbox(car_zones_wgs), timeout = 60) %>%
   add_osm_feature(key = "highway", value = c("primary", "secondary", "tertiary")) %>%
   osmdata_sf() %>%
   .$osm_lines %>%
