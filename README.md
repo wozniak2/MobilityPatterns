@@ -36,7 +36,7 @@ Numbered R scripts (`1_...` through `10_...`) form the main pipeline, run
 roughly in sequence — see [Workflow](#workflow) below for details on each
 stage and its dependencies.
 
-## Workflow
+### Workflow
 
 The scripts are numbered in execution order and form a single end-to-end
 pipeline, from raw spatial/population inputs to the final PT vs. car
