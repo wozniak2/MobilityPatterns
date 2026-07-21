@@ -4,7 +4,7 @@ library(ggplot2)
 setwd("/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 itineraries <- read.csv("itineraries_weights.csv")
 
-itineraries$has_rail <- ifelse(grepl("RAIL", itineraries$mode), 1, 0)
+itineraries$has_rail <- ifelse(grepl("RAIL", itineraries$modes), 1, 0)
 
 #Calculate travel time ratios averaged by workplaces
 w_ratio <- itineraries %>% 

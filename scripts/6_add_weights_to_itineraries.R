@@ -66,21 +66,30 @@ od_combined <- inner_join(pt_od, car_od, by = c("from_id", "to_id")) |>
 itineraries_pop <- od_combined |>
   st_as_sf(coords = c("from_lon", "from_lat"), crs = 4326) |>
   st_transform(st_crs(pop_grid)) |>
-  st_join(pop_grid |> select(grid_id, working_age_pop),
-          join = st_intersects) |>
+  st_join(pop_grid |> select(grid_id, working_age_pop), join = st_intersects) |>
+  mutate(
+    from_lon = st_coordinates(geometry)[, 1],  # ← extract before dropping
+    from_lat = st_coordinates(geometry)[, 2]
+  ) |>
   st_drop_geometry() |>
   filter(!is.na(working_age_pop))
 
 cat("After pop join:", nrow(itineraries_pop), "rows\n")
 
 # 5. Destination weight — workplaces
+# After the final st_drop_geometry(), add coordinates back explicitly
 itineraries_weights <- itineraries_pop |>
   st_as_sf(coords = c("to_lon", "to_lat"), crs = 4326) |>
   st_transform(st_crs(workplace_grid)) |>
-  st_join(workplace_grid |> select(workplaces),
-          join = st_intersects) |>
+  st_join(workplace_grid |> select(workplaces), join = st_intersects) |>
+  mutate(                              # ← extract coords before dropping
+    to_lon = st_coordinates(geometry)[, 1],
+    to_lat = st_coordinates(geometry)[, 2]
+  ) |>
   st_drop_geometry() |>
   filter(!is.na(workplaces))
+
+write.csv(itineraries_weights, "itineraries_weights.csv", row.names = FALSE)
 
 cat("After workplace join:", nrow(itineraries_weights), "rows\n")
 
