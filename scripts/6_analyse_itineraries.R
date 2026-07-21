@@ -88,13 +88,19 @@ print(moran_result)
 # ── 4. Local Moran's I (LISA) — locate significant clusters ──────────────────
 local_moran <- localmoran(diff_sf$diff, lw, zero.policy = TRUE)
 
+# First mutate: numeric columns
 diff_sf <- diff_sf %>%
   mutate(
     local_I   = local_moran[, "Ii"],
     local_p   = local_moran[, "Pr(z != E(Ii))"],
     local_sig = local_p < 0.05,
     mean_diff = mean(diff, na.rm = TRUE),
-    lag_diff  = lag.listw(lw, diff, zero.policy = TRUE),
+    lag_diff  = lag.listw(lw, diff, zero.policy = TRUE)
+  )
+
+# Second mutate: lisa_type separately
+diff_sf <- diff_sf %>%
+  mutate(
     lisa_type = case_when(
       local_sig & diff > mean_diff & lag_diff > mean_diff ~ "High-High (car cluster)",
       local_sig & diff < mean_diff & lag_diff < mean_diff ~ "Low-Low (PT cluster)",
@@ -112,9 +118,10 @@ nearest_idx     <- st_nearest_feature(diff_sf, pop_grid_r)
 #diff_sf$working_age_pop <- pop_grid_r$working_age_pop[nearest_idx]
 # With intersection join to match add_weights logic:
 diff_sf <- diff_sf |>
-  st_join(pop_grid |> st_transform(st_crs(diff_sf)) |>
-            select(working_age_pop),
-          join = st_intersects)
+  st_join(
+    pop_grid_r |> select(working_age_pop),
+    join = st_intersects
+  )
 
 # ── 6. Extract car-dominated zones ───────────────────────────────────────────
 car_zones <- diff_sf %>% filter(lisa_type == "High-High (car cluster)")
@@ -300,5 +307,7 @@ ggplot() +
     panel.grid.minor  = element_blank()
   ) +
   guides(color = guide_legend(override.aes = list(size = 5)))
+
+print(table(car_zones$priority))
 
 ggsave("Fig_PT_investment_priority.png", width = 12, height = 9, dpi = 300)
