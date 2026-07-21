@@ -1,5 +1,41 @@
 ## Commuting Efficiency and Spatial Inequalities in European Cities: An Open-Data Framework for Evaluating Sustainable Mobility
 
+## About this repository
+
+This repository contains the data processing and analysis pipeline for a
+study of public transport (PT) accessibility deficits in the Poznań
+metropolitan area, Poland. The project compares PT and car travel times
+across the region to identify where public transport is competitive with
+private car travel, where it lags significantly, and which areas should
+be prioritized for PT investment.
+
+The core workflow combines:
+
+- **Workplace surfaces** derived from BDOT10k topographic data and CEIDG
+  business registry records, used to estimate the spatial distribution of
+  employment.
+- **Working-age population** distributed across a fine-grained spatial
+  grid (120 m resolution).
+- **Multimodal routing** via [r5r](https://github.com/ipeaGIT/r5r), run in
+  batch across municipalities in the Poznań metropolitan area, to generate
+  comparable PT and car itineraries for origin–destination pairs.
+- **Travel time ratio analysis**, weighting itinerary-level PT/car
+  comparisons by population and workplace counts to identify areas of PT
+  competitiveness versus deficit.
+- **Spatial classification and clustering** (e.g. LISA) to characterize
+  the spatial structure of PT deficits and to support a multi-dimensional
+  PT investment priority typology.
+
+The output of this pipeline supports a manuscript analyzing modal gaps and
+PT accessibility deficits in the Poznań metropolitan area, intended for
+transport geography and spatial information science audiences.
+
+### Repository structure
+
+Numbered R scripts (`1_...` through `10_...`) form the main pipeline, run
+roughly in sequence — see [Workflow](#workflow) below for details on each
+stage and its dependencies.
+
 ## Workflow
 
 The scripts are numbered in execution order and form a single end-to-end
