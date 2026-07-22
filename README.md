@@ -192,8 +192,16 @@ has run at least once.
    time ratios: population-weighted distributions, rail vs. non-rail
    comparison, competitive vs. improvement-needed itineraries.
 8. **`8_plot_itineraries.R`** — Generates map-based visualizations of
-   itinerary flow density for PT vs. car.
-   *Output: `Figures/Fig_cars_pt_itineraries.png`*
+   itinerary flow density for PT vs. car, plus route-level descriptive
+   statistics per OD pair (duration, distance, transfers, PT/car
+   competitiveness breakdown) computed directly from `pt_itineraries.rds`/
+   `car_itineraries.rds`, since those attributes aren't present in the
+   rasterized flow surfaces used for the map.
+   *Output: `Figures/Fig_cars_pt_itineraries.png`,
+   `Figures/Fig_duration_boxplot_pt_car.png`,
+   `Figures/Fig_distance_boxplot_pt_car.png`,
+   `itinerary_summary_stats.csv`,
+   `itinerary_competitiveness_breakdown.csv`*
 9. **`9_analyse_itineraries.R`** — LISA clustering of car-vs-PT flow
    density, PT-accessibility classification against GTFS stop frequency,
    and the multi-dimensional PT investment priority typology.
