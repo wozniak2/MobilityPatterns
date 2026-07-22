@@ -26,10 +26,19 @@ The core workflow combines:
   spatial structure of PT deficits and to support a multi-dimensional PT
   investment priority typology (implemented in `9_analyse_itineraries.R`
   and `10_OD_comparison.R`, sharing logic from `lisa_priority_utils.R`).
+- **Regression modelling** of the PT/car travel time ratio against network,
+  stop-accessibility, and population-exposure variables built per OD pair
+  (`11_regression_analysis.R`).
 
 The output of this pipeline supports a manuscript analyzing modal gaps and
 PT accessibility deficits in the Poznań metropolitan area, intended for
 transport geography and spatial information science audiences.
+
+### Example result
+
+![PT vs car travel time competitiveness](Figures/Fig_PT_vs_car_travels.png)
+
+Origin–destination pairs classified by PT/car travel time ratio (`10_OD_comparison.R`), one of several figures written to `Figures/`.
 
 ## Requirements
 
@@ -48,6 +57,8 @@ transport geography and spatial information science audiences.
     server requests)
   - `data.table` — fast grouping in `6_add_weights_to_itineraries.R`
   - `scales` — axis/label formatting in `10_OD_comparison.R`
+  - `corrplot`, `car` — correlation matrix and VIF diagnostics in
+    `11_regression_analysis.R`
 
 > **Note:** fill in exact package versions (e.g. via `renv::snapshot()` or
 > a `sessionInfo()` dump) once the pipeline is stable, so results are
@@ -93,9 +104,10 @@ scripts/
 ├── 8_plot_itineraries.R
 ├── 9_analyse_itineraries.R
 ├── 10_OD_comparison.R
-└── lisa_priority_utils.R   <- shared helpers sourced by 9 and 10
+├── 11_regression_analysis.R
+└── lisa_priority_utils.R   <- shared helpers sourced by 9, 10 and 11
 Data/            <- input and intermediate data (see "Data availability")
-Output/          <- figures, tables, and derived results (paths TBD)
+Figures/         <- output PNGs written by ggsave() calls (e.g. Fig_PT_vs_car_travels.png)
 ```
 
 > Adjust the tree above to match your actual folder layout, and confirm
@@ -116,8 +128,9 @@ relative to `Data/`.
    ├─→ 4 → 5 → 6 → 7
 2 ─┘        │    └─→ (standalone exploration)
             ├─→ 8
-            └─→ 9 ─┐
-                    │  (both source lisa_priority_utils.R)
+            ├─→ 9  ─┐
+            └─→ 11  │  (9, 10, 11 all source lisa_priority_utils.R;
+                     │   11 also reads pop_grid.gpkg from step 2)
 3 (diagnostic, reads outputs of 1 & 2, not required by 4)
 
 10 is standalone: rereads itineraries + GTFS + pop_grid from disk directly,
@@ -130,12 +143,13 @@ produces a diagnostic combined grid (`pop_workplaces_grid.gpkg`,
 `pop_wp_flows_grid.gpkg`) and introductory figures; run it whenever you
 want those, but it does not block later steps.
 
-**5 → {6, 8, 9} is now file-based, not session-based.** Step 5 rasterizes
-and consolidates the raw per-municipality itinerary files and writes
-`itineraries_results.rds`, `pt_itineraries.rds`, and `car_itineraries.rds`
-to `Data/`. Steps 6, 8, and 9 each `readRDS()` those files at the top, so
-they can be run independently in fresh R sessions, in any order relative
-to each other, as long as step 5 has run at least once.
+**5 → {6, 8, 9, 11} is now file-based, not session-based.** Step 5
+rasterizes and consolidates the raw per-municipality itinerary files and
+writes `itineraries_results.rds`, `pt_itineraries.rds`, and
+`car_itineraries.rds` to `Data/`. Steps 6, 8, 9, and 11 each `readRDS()`
+those files at the top, so they can be run independently in fresh R
+sessions, in any order relative to each other, as long as step 5 has run
+at least once.
 
 1. **`1_calculate_workplaces.R`** — Derives a 200 m workplace grid from
    BDOT10k building floor area (`work_bdot.gpkg`) and CEIDG small-business
@@ -166,20 +180,30 @@ to each other, as long as step 5 has run at least once.
    comparison, competitive vs. improvement-needed itineraries.
 8. **`8_plot_itineraries.R`** — Generates map-based visualizations of
    itinerary flow density for PT vs. car.
-   *Output: `Fig_cars_pt_itineraries.png`*
+   *Output: `Figures/Fig_cars_pt_itineraries.png`*
 9. **`9_analyse_itineraries.R`** — LISA clustering of car-vs-PT flow
    density, PT-accessibility classification against GTFS stop frequency,
    and the multi-dimensional PT investment priority typology.
-   *Output: `Fig_PT_investment_priority.png`*
+   *Output: `Figures/Fig_PT_investment_priority.png`*
 10. **`10_OD_comparison.R`** — Standalone, from-scratch OD travel-time
     comparison (PT vs. car) across counties near Poznań, reusing the same
     LISA/priority classification helpers as step 9.
-    *Output: `Fig_PT_vs_car_travels.png`, `Fig_PT_vs_car_travels_HEX.png`,
-    `Fig_PT_vs_car_travels_by_origin.png`*
+    *Output: `Figures/Fig_PT_vs_car_travels.png`,
+    `Figures/Fig_PT_vs_car_travels_HEX.png`,
+    `Figures/Fig_PT_vs_car_travels_by_origin.png`*
+11. **`11_regression_analysis.R`** — Builds a per-OD-pair regression
+    dataset (PT/car efficiency, route directness, GTFS stop distance and
+    frequency, rail access, origin/destination population exposure) and
+    runs correlation, VIF, and OLS diagnostics on the PT/car travel time
+    ratio. Uses `stops_poznan` (with `is_rail`/`service_days`) from
+    `load_gtfs_stops()` in `lisa_priority_utils.R`, and
+    `pop_grid.gpkg` from step 2, for the stop- and population-based
+    variables.
+    *Output: `regression_data.csv`*
 
-Steps 7–9 are exploratory/analytical and can be run independently once
-step 6 (for 7) or step 5 (for 8, 9) has produced its output. Step 10 is
-fully standalone and does not depend on steps 1–9.
+Steps 7–9 and 11 are exploratory/analytical and can be run independently
+once step 6 (for 7) or step 5 (for 8, 9, 11) has produced its output.
+Step 10 is fully standalone and does not depend on steps 1–9.
 
 ## Citation
 

@@ -20,6 +20,7 @@ library(scales)
 # ── 0. Paths — edit here only ─────────────────────────────────────────────────
 setwd("Data")
 source("lisa_priority_utils.R")
+dir.create("../Figures", showWarnings = FALSE)
 
 DATA_DIR  <- "itineraries" # written by 4_r5r_route_batch.R
 GTFS_DIR  <- "gtfs"
@@ -301,7 +302,7 @@ ggplot() +
   ) +
   guides(colour = guide_legend(override.aes = list(size = 4, alpha = 1)))
 
-ggsave("Fig_PT_vs_car_travels.png", width = 12, height = 9, dpi = 300)
+ggsave("../Figures/Fig_PT_vs_car_travels.png", width = 12, height = 9, dpi = 300)
 cat("Saved Fig_PT_vs_car_travels.png\n")
 
 # =============================================================================
@@ -352,7 +353,7 @@ ggplot() +
     title.position = "top", direction = "horizontal"
   ))
 
-ggsave("Fig_PT_vs_car_travels_HEX.png", width = 12, height = 9, dpi = 300)
+ggsave("../Figures/Fig_PT_vs_car_travels_HEX.png", width = 12, height = 9, dpi = 300)
 cat("Saved Fig_PT_vs_car_travels_HEX.png\n")
 
 # =============================================================================
@@ -422,5 +423,5 @@ ggplot() +
     size   = guide_legend(override.aes = list(colour = "white"))
   )
 
-ggsave("Fig_PT_vs_car_travels_by_origin.png", width = 12, height = 9, dpi = 300)
+ggsave("../Figures/Fig_PT_vs_car_travels_by_origin.png", width = 12, height = 9, dpi = 300)
 cat("Saved Fig_PT_vs_car_travels_by_origin.png\n")

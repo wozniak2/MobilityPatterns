@@ -9,6 +9,7 @@ library(osmdata)
 
 setwd("Data")
 source("lisa_priority_utils.R")
+dir.create("../Figures", showWarnings = FALSE)
 
 # Itineraries produced by 5_read_itineraries.R (rasterized at 120m per county)
 results <- readRDS("itineraries_results.rds")
@@ -185,4 +186,4 @@ ggplot() +
 
 print(table(car_zones$priority))
 
-ggsave("Fig_PT_investment_priority.png", width = 12, height = 9, dpi = 300)
+ggsave("../Figures/Fig_PT_investment_priority.png", width = 12, height = 9, dpi = 300)

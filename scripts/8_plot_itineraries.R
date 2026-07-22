@@ -6,6 +6,7 @@ library(terra)
 library(patchwork)
 
 setwd("Data")
+dir.create("../Figures", showWarnings = FALSE)
 
 # Read itineraries produced by 5_read_itineraries.R (rasterized at 120m per county)
 results <- readRDS("itineraries_results.rds")
@@ -105,4 +106,4 @@ car_iti <- ggplot(df_plot_car) +
 require(patchwork)
 pt_iti + car_iti
 
-ggsave("Fig_cars_pt_itineraries.png", width = 12, height = 9, dpi = 300)
+ggsave("../Figures/Fig_cars_pt_itineraries.png", width = 12, height = 9, dpi = 300)

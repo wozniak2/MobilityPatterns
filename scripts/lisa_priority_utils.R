@@ -15,7 +15,10 @@ library(purrr)
 library(tidyr)
 
 #' Load and merge every GTFS feed in `gtfs_dir`, returning stop-level
-#' departure counts as an sf object filtered to a bounding box.
+#' departure counts as an sf object filtered to a bounding box. Also flags
+#' rail-like stops (`is_rail`, GTFS route_type 0-2: tram/metro/rail vs. bus)
+#' and attaches the feed's distinct service-day count as a
+#' `service_days` attribute, for daily-frequency normalisation.
 load_gtfs_stops <- function(gtfs_dir,
                              lon_range = c(16.5, 17.5),
                              lat_range = c(52.0, 52.8),
@@ -34,6 +37,7 @@ load_gtfs_stops <- function(gtfs_dir,
   }
 
   stops      <- merge_table(gtfs_list, "stops")
+  routes     <- merge_table(gtfs_list, "routes")
   trips      <- merge_table(gtfs_list, "trips")
   stop_times <- merge_table(gtfs_list, "stop_times")
 
@@ -41,16 +45,30 @@ load_gtfs_stops <- function(gtfs_dir,
   stops <- stops %>% mutate(stop_id = paste(feed, stop_id, sep = "_"))
   stop_times <- stop_times %>%
     select(-feed) %>%
-    left_join(trips %>% select(trip_id, route_id, feed), by = "trip_id") %>%
+    left_join(trips %>% select(trip_id, route_id, service_id, feed), by = "trip_id") %>%
     mutate(stop_id = paste(feed, stop_id, sep = "_"))
 
-  stops %>%
+  # Rail-like stops: any route serving them is tram/metro/rail (GTFS route_type 0-2)
+  rail_stop_ids <- stop_times %>%
+    left_join(routes %>% select(route_id, route_type), by = "route_id") %>%
+    filter(route_type %in% c(0, 1, 2)) %>%
+    distinct(stop_id) %>%
+    pull(stop_id)
+
+  # Distinct service days across the merged feed(s)
+  service_days <- n_distinct(stop_times$service_id)
+
+  stops_out <- stops %>%
     left_join(stop_times %>% count(stop_id, name = "n_departures"), by = "stop_id") %>%
-    mutate(n_departures = replace_na(n_departures, 0)) %>%
+    mutate(n_departures = replace_na(n_departures, 0),
+           is_rail       = stop_id %in% rail_stop_ids) %>%
     filter(stop_lon >= lon_range[1], stop_lon <= lon_range[2],
            stop_lat >= lat_range[1], stop_lat <= lat_range[2]) %>%
     st_as_sf(coords = c("stop_lon", "stop_lat"), crs = 4326) %>%
     st_transform(crs)
+
+  attr(stops_out, "service_days") <- service_days
+  stops_out
 }
 
 #' Compute global + local Moran's I (LISA) on a car-vs-PT log-frequency
