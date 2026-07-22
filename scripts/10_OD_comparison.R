@@ -1,7 +1,8 @@
 # =============================================================================
 # 10_OD_comparison.R
-# Standalone OD travel time comparison: PT vs car
-# Requires: Data/itineraries/*.gpkg, poz.gpkg, pop_grid.gpkg, Data/gtfs/*.zip
+# OD travel time comparison: PT vs car
+# Requires: pt_itineraries.rds, car_itineraries.rds (from 5_read_itineraries.R),
+#           poz.gpkg, pop_grid.gpkg, Data/gtfs/*.zip
 # Produces: Fig_PT_vs_car_travels.png
 #           Fig_PT_vs_car_travels_HEX.png
 #           Fig_PT_vs_car_travels_by_origin.png
@@ -22,39 +23,15 @@ setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 source("C:/Users/wozni/OneDrive/Documents/GitHub/MobilityPatterns/scripts/lisa_priority_utils.R")
 dir.create("../Figures", showWarnings = FALSE)
 
-DATA_DIR  <- "itineraries" # written by 4_r5r_route_batch.R
 GTFS_DIR  <- "gtfs"
 POZ_FILE  <- "poz.gpkg"
 POP_FILE  <- "pop_grid.gpkg"
 
 # =============================================================================
-# 1. Load itineraries
+# 1. Load itineraries produced by 5_read_itineraries.R
 # =============================================================================
-pt_files  <- list.files(DATA_DIR, pattern = "^pt_itineraries_.*\\.gpkg$",  full.names = TRUE)
-car_files <- list.files(DATA_DIR, pattern = "^car_itineraries_.*\\.gpkg$", full.names = TRUE)
-
-extract_county <- function(fname) {
-  str_extract(basename(fname), "(?<=itineraries_).*(?=\\.gpkg)") |> str_to_lower()
-}
-
-matched <- inner_join(
-  tibble(county = extract_county(pt_files),  pt_path  = pt_files),
-  tibble(county = extract_county(car_files), car_path = car_files),
-  by = "county"
-)
-cat("Matched counties:", nrow(matched), "\n")
-
-pt_itineraries <- matched |>
-  pmap(\(county, pt_path, car_path) {
-    st_read(pt_path, quiet = TRUE) |> mutate(county = county)
-  }) |>
-  bind_rows()
-
-car_itineraries <- matched |>
-  pmap(\(county, pt_path, car_path) {
-    st_read(car_path, quiet = TRUE) |> mutate(county = county)
-  }) |>
-  bind_rows()
+pt_itineraries  <- readRDS("pt_itineraries.rds")
+car_itineraries <- readRDS("car_itineraries.rds")
 
 cat(sprintf("PT rows : %d\nCar rows: %d\n",
             nrow(pt_itineraries), nrow(car_itineraries)))

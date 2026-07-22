@@ -139,12 +139,10 @@ folder), independent of the data location.
 2 ─┘        │    └─→ (standalone exploration)
             ├─→ 8
             ├─→ 9  ─┐
-            ├─→ 11  │  (9, 10, 11 all source lisa_priority_utils.R;
-            └─→ 12  │   11 also reads pop_grid.gpkg from step 2)
+            ├─→ 10  │  (9, 10, 11 all source lisa_priority_utils.R;
+            ├─→ 11  │   10 and 11 also read pop_grid.gpkg from step 2)
+            └─→ 12  │
 3 (diagnostic, reads outputs of 1 & 2, not required by 4)
-
-10 is standalone: rereads itineraries + GTFS + pop_grid from disk directly,
-independent of scripts 5-9.
 
 12 also reads workplace_grid.gpkg (step 1), ap.gpkg, and the external
 OD_flows.csv census matrix (restricted to neighborhood -> core flows).
@@ -156,10 +154,10 @@ produces a diagnostic combined grid (`pop_workplaces_grid.gpkg`,
 `pop_wp_flows_grid.gpkg`) and introductory figures; run it whenever you
 want those, but it does not block later steps.
 
-**5 → {6, 8, 9, 11, 12} is now file-based, not session-based.** Step 5
+**5 → {6, 8, 9, 10, 11, 12} is now file-based, not session-based.** Step 5
 rasterizes and consolidates the raw per-municipality itinerary files and
 writes `itineraries_results.rds`, `pt_itineraries.rds`, and
-`car_itineraries.rds` to `Data/`. Steps 6, 8, 9, 11, and 12 each
+`car_itineraries.rds` to `Data/`. Steps 6, 8, 9, 10, 11, and 12 each
 `readRDS()` those files at the top, so they can be run independently in
 fresh R sessions, in any order relative to each other, as long as step 5
 has run at least once.
@@ -203,12 +201,17 @@ has run at least once.
    `itinerary_summary_stats.csv`,
    `itinerary_competitiveness_breakdown.csv`*
 9. **`9_analyse_itineraries.R`** — LISA clustering of car-vs-PT flow
-   density, PT-accessibility classification against GTFS stop frequency,
-   and the multi-dimensional PT investment priority typology.
-   *Output: `Figures/Fig_PT_investment_priority.png`*
-10. **`10_OD_comparison.R`** — Standalone, from-scratch OD travel-time
-    comparison (PT vs. car) across counties near Poznań, reusing the same
-    LISA/priority classification helpers as step 9.
+   density (mapped as the full four-quadrant HH/LL/HL/LH classification,
+   not just the High-High subset), PT-accessibility classification against
+   GTFS stop frequency, and the multi-dimensional PT investment priority
+   typology.
+   *Output: `Figures/Fig_LISA_cluster_map.png`,
+   `Figures/Fig_PT_investment_priority.png`*
+10. **`10_OD_comparison.R`** — OD travel-time comparison (PT vs. car)
+    across counties near Poznań, rebuilding its own LISA/car-zone
+    classification from scratch (reusing the shared helpers in
+    `lisa_priority_utils.R`, also used by step 9) rather than reusing step
+    9's already-computed result.
     *Output: `Figures/Fig_PT_vs_car_travels.png`,
     `Figures/Fig_PT_vs_car_travels_HEX.png`,
     `Figures/Fig_PT_vs_car_travels_by_origin.png`*
@@ -241,10 +244,8 @@ has run at least once.
     `Figures/Fig_od_validation_scatter.png`,
     `Figures/Fig_od_validation_share_by_municipality.png`*
 
-Steps 7–9, 11, and 12 are exploratory/analytical and can be run
-independently once step 6 (for 7) or step 5 (for 8, 9, 11, 12) has
-produced its output. Step 10 is fully standalone and does not depend on
-steps 1–9.
+Steps 7–12 are exploratory/analytical and can be run independently once
+step 6 (for 7) or step 5 (for 8, 9, 10, 11, 12) has produced its output.
 
 ## Citation
 

@@ -54,6 +54,56 @@ print(moran_result)
 # ── 4. Local Moran's I (LISA) — locate significant clusters ──────────────────
 diff_sf <- compute_lisa(diff_sf, cell_size)
 
+cat("\nLISA cluster breakdown (all cells):\n")
+print(table(diff_sf$lisa_type))
+
+poz <- st_read("poz.gpkg", quiet = TRUE) ## donut
+
+# ── 4b. LISA cluster map (HH/LL/HL/LH) ────────────────────────────────────────
+diff_sf_wgs <- st_transform(diff_sf, 4326)
+poz_wgs     <- st_transform(poz, 4326)
+
+ggplot() +
+  geom_sf(
+    data        = diff_sf_wgs %>% filter(lisa_type != "Not significant"),
+    aes(colour  = lisa_type),
+    size        = 0.5, alpha = 0.8, shape = 15,
+    inherit.aes = FALSE
+  ) +
+  geom_sf(data = poz_wgs, fill = NA, colour = "white",
+          linewidth = 0.4, inherit.aes = FALSE) +
+  scale_colour_manual(
+    values = c(
+      "High-High (car cluster)" = "#c0392b",
+      "Low-Low (PT cluster)"    = "#2980b9",
+      "High-Low (car outlier)"  = "#e67e22",
+      "Low-High (PT outlier)"   = "#8e44ad"
+    ),
+    name = "LISA cluster"
+  ) +
+  coord_sf(crs = 4326) +
+  labs(
+    title    = "Spatial clustering of the car/PT modal gap (LISA)",
+    subtitle = "Local Moran's I, p < 0.05; non-significant cells omitted"
+  ) +
+  theme_dark() +
+  theme(
+    panel.background  = element_rect(fill = "#1a1a1a"),
+    plot.background   = element_rect(fill = "#1a1a1a"),
+    legend.background = element_rect(fill = "#1a1a1a"),
+    legend.key        = element_rect(fill = "#1a1a1a"),
+    text              = element_text(color = "white"),
+    axis.text         = element_blank(),
+    axis.title        = element_blank(),
+    legend.title      = element_text(size = 14, color = "white"),
+    legend.text       = element_text(size = 14, color = "white"),
+    panel.grid.major  = element_blank(),
+    panel.grid.minor  = element_blank()
+  )
+
+ggsave("../Figures/Fig_LISA_cluster_map.png", width = 12, height = 9, dpi = 300)
+cat("Saved Figures/Fig_LISA_cluster_map.png\n")
+
 # ── 5. Assign population to all pixels via nearest GHS-POP grid cell ─────────
 pop_grid   <- st_read("pop_grid.gpkg", quiet = TRUE)
 pop_grid_r <- st_transform(pop_grid, st_crs(diff_sf))
@@ -76,7 +126,6 @@ car_zones <- diff_sf %>%
   classify_car_zones(stops_poznan, pop_threshold)
 
 # Remove pixels inside Poznań city boundary (focus on suburban gaps)
-poz <- st_read("poz.gpkg") ## donut
 poz_r <- st_transform(poz, st_crs(car_zones))
 outside   <- lengths(st_intersects(car_zones, st_union(poz_r))) == 0
 car_zones <- car_zones[outside, ]
