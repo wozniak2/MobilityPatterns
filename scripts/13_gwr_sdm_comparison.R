@@ -57,6 +57,17 @@ model_formula <- tt_ratio ~ n_transfers + walk_share + daily_departures +
 # ── 1. Load regression data & aggregate to one row per origin zone ───────────
 regression_data <- read.csv("regression_data.csv")
 
+required_cols <- c("from_id", "from_lon", "from_lat", all.vars(model_formula))
+missing_cols  <- setdiff(required_cols, names(regression_data))
+if (length(missing_cols) > 0) {
+  stop(
+    "regression_data.csv is missing column(s): ", paste(missing_cols, collapse = ", "),
+    ". This usually means it was written by an older version of ",
+    "11_regression_analysis.R -- re-run that script to regenerate regression_data.csv, ",
+    "then re-run this script."
+  )
+}
+
 origin_data <- regression_data %>%
   group_by(from_id, from_lon, from_lat) %>%
   summarise(
