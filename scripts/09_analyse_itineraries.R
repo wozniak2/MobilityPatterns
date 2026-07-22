@@ -57,7 +57,7 @@ diff_sf <- compute_lisa(diff_sf, cell_size)
 cat("\nLISA cluster breakdown (all cells):\n")
 print(table(diff_sf$lisa_type))
 
-poz <- st_read("poz.gpkg", quiet = TRUE) ## donut
+poz <- st_read("poz.gpkg", quiet = TRUE) ## Poznan core city boundary
 
 # ── 4b. LISA cluster map (HH/LL/HL/LH) ────────────────────────────────────────
 diff_sf_wgs <- st_transform(diff_sf, 4326)

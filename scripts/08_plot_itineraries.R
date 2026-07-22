@@ -30,7 +30,7 @@ dir.create("../Figures", showWarnings = FALSE)
 results <- readRDS("itineraries_results.rds")
 cell_size <- 120
 
-poz <- st_read("poz.gpkg", quiet = TRUE) ## donut
+poz <- st_read("poz.gpkg", quiet = TRUE) ## Poznan core city boundary
 
 # ── Aggregate PT and Car rasters for visualisation ───────────────────────────
 

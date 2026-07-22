@@ -16,17 +16,28 @@
 # monotonic relationship (and relative share across municipalities) is
 # defensible to claim -- not absolute magnitude.
 #
-# CORE DETECTION: workplace_grid.gpkg is itself clipped to the Poznań city
-# boundary (see 01_calculate_workplaces.R), so "core" is detected empirically
-# as whichever municipality nearly all destination points fall into, rather
-# than hardcoding a name string. "Neighborhood" = the other municipalities in
-# ap.gpkg (the tightly-integrated agglomeration ring), since pop_grid.gpkg is
-# itself clipped to `ap` -- the wider poz.gpkg "donut" ring has no synthetic
-# coverage at all and is not part of "neighborhood" here.
+# CORE / NEIGHBORHOOD: verified directly against the two boundary files
+# (see below), not assumed from their filenames. ap.gpkg contains the ring
+# of municipalities surrounding Poznan and NO Poznan polygon at all; poz.gpkg
+# contains exactly the Poznan core city and none of the ring -- the opposite
+# of what their names and earlier comments in this codebase ("agglomeration"
+# for ap, "donut" for poz) suggested. This was confirmed by grepping both
+# files directly: known ring municipality names (Swarzedz, Kornik, Mosina,
+# Lubon, etc.) each appear in ap.gpkg and never in poz.gpkg; "Poznan" appears
+# in poz.gpkg and never in ap.gpkg.
+#
+# This also explains a previous bug in this script: an earlier version
+# classified BOTH origins and destinations against `ap` alone. Since `ap` has
+# no Poznan polygon, every destination point (all genuinely inside the core)
+# was nearest-feature-matched to whichever RING municipality happened to be
+# geographically closest -- which is why "core" was once (wrongly) detected
+# as Lubon. The fix is to classify against the union of ap (ring) and poz
+# (core) together, and to take the core's name directly from poz.gpkg rather
+# than inferring it.
 #
 # INPUT  : pt_itineraries.rds, car_itineraries.rds (from 05_read_itineraries.R)
 #          pop_grid.gpkg, workplace_grid.gpkg (from steps 1-2)
-#          ap.gpkg (municipality boundaries, core + immediate ring)
+#          ap.gpkg (ring municipalities), poz.gpkg (Poznan core city)
 #          OD_flows.csv (census LAU-to-LAU commuting matrix)
 # OUTPUT : od_validation_neighborhood_to_core.csv
 #          Figures/Fig_od_validation_scatter.png
@@ -49,11 +60,28 @@ car_itineraries <- readRDS("car_itineraries.rds")
 pop_grid  <- st_read("pop_grid.gpkg", quiet = TRUE)       %>% st_transform(2180)
 work_grid <- st_read("workplace_grid.gpkg", quiet = TRUE) %>% st_transform(2180)
 
-# Municipality boundaries: the agglomeration ring (core + immediate neighbors)
+# Municipality boundaries: ap = ring surrounding Poznan, poz = Poznan core
+# city alone (see header note -- verified directly, not assumed). Both are
+# needed to classify origin/destination points correctly: using ap alone
+# would leave destination points inside the core with no matching polygon.
 ap <- st_read("ap.gpkg", quiet = TRUE) %>%
   select(JPT_NAZWA_) %>%
   st_transform(2180) %>%
   mutate(JPT_NAZWA_ = normalize_name(JPT_NAZWA_))
+
+poz <- st_read("poz.gpkg", quiet = TRUE) %>%
+  select(JPT_NAZWA_) %>%
+  st_transform(2180) %>%
+  mutate(JPT_NAZWA_ = normalize_name(JPT_NAZWA_))
+
+if (nrow(poz) != 1) {
+  stop(
+    "Expected poz.gpkg to contain exactly one municipality (the Poznan ",
+    "core), found ", nrow(poz), ": ", paste(poz$JPT_NAZWA_, collapse = " | ")
+  )
+}
+
+municipalities <- bind_rows(ap, poz)
 
 # ── 2. Distinct grid-cell OD pairs actually routed ────────────────────────────
 # Car routing succeeds almost everywhere on the road network, so the union of
@@ -82,17 +110,33 @@ od_pairs <- od_pairs %>%
   mutate(
     working_age_pop   = pop_grid$working_age_pop[st_nearest_feature(origin_sf, pop_grid)],
     workplaces         = work_grid$workplaces[st_nearest_feature(dest_sf, work_grid)],
-    home_municipality = ap$JPT_NAZWA_[st_nearest_feature(origin_sf, ap)],
-    work_municipality = ap$JPT_NAZWA_[st_nearest_feature(dest_sf, ap)]
+    home_municipality = municipalities$JPT_NAZWA_[st_nearest_feature(origin_sf, municipalities)],
+    work_municipality = municipalities$JPT_NAZWA_[st_nearest_feature(dest_sf, municipalities)]
   )
 
 # ── 4. Restrict to neighborhood -> core flows ─────────────────────────────────
-core_name <- names(sort(table(od_pairs$work_municipality), decreasing = TRUE))[1]
-neighborhood_names <- setdiff(unique(ap$JPT_NAZWA_), core_name)
+# Core = the single municipality in poz.gpkg (verified above to be exactly
+# one row -- Poznan). Neighborhood = every municipality in ap.gpkg (the ring;
+# ap.gpkg contains no Poznan polygon, so no exclusion is needed).
+core_name <- poz$JPT_NAZWA_
+neighborhood_names <- unique(ap$JPT_NAZWA_)
 
-cat("Detected core municipality:", core_name, "\n")
-cat("Neighborhood municipalities (ap ring, excluding core):",
-    length(neighborhood_names), "\n")
+cat("Core municipality:", core_name, "\n")
+cat("Neighborhood municipalities (ring):", length(neighborhood_names), "\n")
+
+# Diagnostic: with both ap and poz now in the classification layer, the
+# plurality of destination points should land in the core. If it doesn't,
+# workplace_grid.gpkg may not be cleanly clipped to the Poznan city boundary
+# in 01_calculate_workplaces.R and is worth re-checking.
+most_destinations <- names(sort(table(od_pairs$work_municipality), decreasing = TRUE))[1]
+if (most_destinations != core_name) {
+  cat("\nWARNING: the municipality with the most destination points is '",
+      most_destinations, "', not the core ('", core_name, "'), even with ",
+      "both ap.gpkg and poz.gpkg in the classification layer. ",
+      "workplace_grid.gpkg is likely not cleanly clipped to the Poznan city ",
+      "boundary -- check the st_intersection(workplace_grid, boundary) step ",
+      "in 01_calculate_workplaces.R and the contents of boundary.gpkg.\n", sep = "")
+}
 
 od_pairs <- od_pairs %>%
   filter(home_municipality %in% neighborhood_names,

@@ -92,10 +92,13 @@ Origin–destination pairs classified by PT/car travel time ratio (`10_OD_compar
 - **r5r routing inputs** (OSM extract `.pbf` + GTFS feeds) — placed under
   `Data/routing/`, per the
   [r5r data requirements](https://ipeagit.github.io/r5r/articles/prepare_inputs_r5r.html).
-- **Administrative boundaries** — `Data/ap.gpkg` (Poznań agglomeration),
-  `Data/poz.gpkg` (surrounding "donut" of counties), and optionally
-  `Data/boundary.gpkg` (Poznań city; fetched from OSM automatically by
-  `01_calculate_workplaces.R` if not present).
+- **Administrative boundaries** — `Data/ap.gpkg` (the ring of municipalities
+  surrounding Poznań — verified to contain no Poznań polygon at all, not an
+  "agglomeration" including the core), `Data/poz.gpkg` (the Poznań core city
+  boundary alone — verified to contain exactly one municipality, Poznań, and
+  none of the ring), and optionally `Data/boundary.gpkg` (Poznań city;
+  fetched from OSM automatically by `01_calculate_workplaces.R` if not
+  present, independent of `poz.gpkg`).
 - **OD flow data** — `Data/OD_flows.csv`, joined to `ap.gpkg` by `JPT_ID`
   in `03_merge_pop_workplaces.R`, and used as the empirical validation
   target (joined by municipality name, `home_name`/`work_name`) in
@@ -157,8 +160,10 @@ folder), independent of the data location.
               └─→ 12   │
 03 (diagnostic, reads outputs of 01 & 02, not required by 04)
 
-12 also reads workplace_grid.gpkg (step 01), ap.gpkg, and the external
-OD_flows.csv census matrix (restricted to neighborhood -> core flows).
+12 also reads workplace_grid.gpkg (step 01), ap.gpkg and poz.gpkg (ring and
+core respectively -- used together for municipality classification), and
+the external OD_flows.csv census matrix (restricted to neighborhood -> core
+flows).
 
 13 reads only regression_data.csv (step 11's output) -- no other inputs --
 so it can be re-run on its own once 11 has produced that file.
@@ -248,10 +253,14 @@ has run at least once.
     against the empirical census LAU-to-LAU commuting matrix
     (`OD_flows.csv`), restricted to **neighborhood → core** commuting:
     flows from the municipalities surrounding Poznań into the Poznań core
-    itself. The core municipality is detected empirically (whichever
-    municipality nearly all destination points fall into — `workplace_grid.gpkg`
-    is itself clipped to the Poznań city boundary), and "neighborhood" is
-    every other municipality in `ap.gpkg`. Aggregates surviving grid-cell
+    itself. `ap.gpkg` and `poz.gpkg` are used together for municipality
+    classification: `ap.gpkg` contains the ring of surrounding
+    municipalities and no Poznań polygon, while `poz.gpkg` contains
+    exactly the Poznań core and none of the ring (verified directly
+    against both files — the opposite of what their names and earlier
+    in-code comments suggested). The core municipality is taken directly
+    from `poz.gpkg`, and "neighborhood" is every municipality in
+    `ap.gpkg`. Aggregates surviving grid-cell
     OD pairs (union of car- and PT-reachable pairs) into a
     population(origin) × workplaces(destination) gravity-style proxy for
     synthetic flow volume per neighborhood municipality, matches against

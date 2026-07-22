@@ -13,7 +13,7 @@ wp_grid <- st_read("workplace_grid.gpkg")
 
 # boundry for Poznan agglomeration
 ap <- st_read("ap.gpkg") ## city
-poz <- st_read("poz.gpkg") ## donut
+poz <- st_read("poz.gpkg") ## Poznan core city boundary
 
 # OD flows
 OD_flows <- read.csv("OD_flows.csv")
