@@ -5,7 +5,7 @@ library(sf)
 library(readr)
 library(terra)
 
-setwd("/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
+setwd("Data")
 
 # boundary for Poznan agglomeration
 ap <- st_read("ap.gpkg")
@@ -56,7 +56,7 @@ final_grid <- left_join(grid_poly, aggregated_data, by = "grid_id")
 # join with municipality data & clean-up
 ap <- st_transform(ap, st_crs(final_grid))
 final_grid <- st_intersection(final_grid, ap)
-final_grid <- rename(final_grid, c(working_age_pop = total_value, municipality = JPT_NAZWA_)) %>% 
+final_grid <- rename(final_grid, working_age_pop = total_value, municipality = JPT_NAZWA_) %>%
   subset(select = c("grid_id", "working_age_pop", "point_count", "municipality")) #Make human-readable & clean
 
 final_grid$municipality_short <- sub(" - ", "_", final_grid$municipality)

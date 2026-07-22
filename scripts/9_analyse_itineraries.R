@@ -7,7 +7,11 @@ library(tidyterra)
 library(terra)
 library(osmdata)
 
-# !!! This script requires the 'results' object produced by '5_read_itineraries.R' !!!
+setwd("Data")
+source("lisa_priority_utils.R")
+
+# Itineraries produced by 5_read_itineraries.R (rasterized at 120m per county)
+results <- readRDS("itineraries_results.rds")
 
 # ── 1. Combine counties & compute log-frequency difference ───────────────────
 df_cit <- map_dfr(results, ~ .x$df_cit)
@@ -25,45 +29,7 @@ diff_df <- full_join(
   )
 
 # ── 2. Import and merge GTFS feeds ───────────────────────────────────────────
-gtfs_dir   <- "/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data/gtfs"
-gtfs_files <- list.files(gtfs_dir, pattern = "\\.zip$", full.names = TRUE)
-
-gtfs_list <- gtfs_files %>%
-  set_names(basename(.)) %>%
-  map(read_gtfs)
-
-merge_table <- function(gtfs_list, table_name) {
-  gtfs_list %>%
-    imap(function(gtfs, fname) {
-      tbl <- gtfs[[table_name]]
-      if (!is.null(tbl)) tbl %>% mutate(feed = fname) else NULL
-    }) %>%
-    compact() %>%
-    bind_rows()
-}
-
-stops      <- merge_table(gtfs_list, "stops")
-trips      <- merge_table(gtfs_list, "trips")
-stop_times <- merge_table(gtfs_list, "stop_times")
-
-# Prefix stop_id with feed name to avoid collisions across feeds
-stops <- stops %>% mutate(stop_id = paste(feed, stop_id, sep = "_"))
-stop_times <- stop_times %>%
-  select(-feed) %>%
-  left_join(trips %>% select(trip_id, route_id, feed), by = "trip_id") %>%
-  mutate(stop_id = paste(feed, stop_id, sep = "_"))
-
-# Compute departure frequency per stop and filter to Poznań metro bbox
-stops_poznan <- stops %>%
-  left_join(
-    stop_times %>% count(stop_id, name = "n_departures"),
-    by = "stop_id"
-  ) %>%
-  mutate(n_departures = replace_na(n_departures, 0)) %>%
-  filter(stop_lon >= 16.5, stop_lon <= 17.5,
-         stop_lat >= 52.0, stop_lat <= 52.8) %>%
-  st_as_sf(coords = c("stop_lon", "stop_lat"), crs = 4326) %>%
-  st_transform(2180)
+stops_poznan <- load_gtfs_stops("gtfs")
 
 # ── 3. Build spatial object and compute global Moran's I ─────────────────────
 diff_sf <- diff_df %>%
@@ -77,7 +43,6 @@ cell_size <- results[[1]]$df_cit %>%
   .[. > 1] %>% min()
 cat("Cell size (m):", cell_size, "\n")
 
-# Queen contiguity spatial weights on raster grid
 coords_mat <- st_coordinates(diff_sf)
 nb <- dnearneigh(coords_mat, d1 = 0, d2 = cell_size * 1.5)
 lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
@@ -86,118 +51,28 @@ moran_result <- moran.test(diff_sf$diff, lw, zero.policy = TRUE)
 print(moran_result)
 
 # ── 4. Local Moran's I (LISA) — locate significant clusters ──────────────────
-local_moran <- localmoran(diff_sf$diff, lw, zero.policy = TRUE)
-
-# First mutate: numeric columns
-diff_sf <- diff_sf %>%
-  mutate(
-    local_I   = local_moran[, "Ii"],
-    local_p   = local_moran[, "Pr(z != E(Ii))"],
-    local_sig = local_p < 0.05,
-    mean_diff = mean(diff, na.rm = TRUE),
-    lag_diff  = lag.listw(lw, diff, zero.policy = TRUE)
-  )
-
-# Second mutate: lisa_type separately
-diff_sf <- diff_sf %>%
-  mutate(
-    lisa_type = case_when(
-      local_sig & diff > mean_diff & lag_diff > mean_diff ~ "High-High (car cluster)",
-      local_sig & diff < mean_diff & lag_diff < mean_diff ~ "Low-Low (PT cluster)",
-      local_sig & diff > mean_diff & lag_diff < mean_diff ~ "High-Low (car outlier)",
-      local_sig & diff < mean_diff & lag_diff > mean_diff ~ "Low-High (PT outlier)",
-      TRUE                                                ~ "Not significant"
-    )
-  )
+diff_sf <- compute_lisa(diff_sf, cell_size)
 
 # ── 5. Assign population to all pixels via nearest GHS-POP grid cell ─────────
-pop_grid   <- st_read("pop_grid.gpkg", quiet = TRUE)   # input CRS: World Mollweide
-pop_grid_r <- st_transform(pop_grid, st_crs(diff_sf))  # reproject to EPSG:2180
+pop_grid   <- st_read("pop_grid.gpkg", quiet = TRUE)
+pop_grid_r <- st_transform(pop_grid, st_crs(diff_sf))
 
-nearest_idx     <- st_nearest_feature(diff_sf, pop_grid_r)
-#diff_sf$working_age_pop <- pop_grid_r$working_age_pop[nearest_idx]
-# With intersection join to match add_weights logic:
 diff_sf <- diff_sf |>
   st_join(
     pop_grid_r |> select(working_age_pop),
     join = st_intersects
   )
 
-# ── 6. Extract car-dominated zones ───────────────────────────────────────────
-car_zones <- diff_sf %>% filter(lisa_type == "High-High (car cluster)")
-
-# Distance to nearest PT stop → physical accessibility category
-nearest_stop_idx       <- st_nearest_feature(car_zones, stops_poznan)
-car_zones$n_departures <- stops_poznan$n_departures[nearest_stop_idx]
-
-car_zones <- car_zones %>%
-  mutate(
-    dist_to_stop_m = as.numeric(
-      st_distance(geometry, stops_poznan)[
-        cbind(seq_len(nrow(.)), st_nearest_feature(., stops_poznan))
-      ]
-    ),
-    pt_accessibility = case_when(
-      dist_to_stop_m <  300  ~ "Good (< 300m)",
-      dist_to_stop_m <  600  ~ "Moderate (300–600m)",
-      dist_to_stop_m < 1000  ~ "Poor (600m–1km)",
-      TRUE                   ~ "Very poor (> 1km)"
-    ) %>% factor(levels = c(
-      "Good (< 300m)", "Moderate (300–600m)", "Poor (600m–1km)", "Very poor (> 1km)"
-    ))
-  )
-
-# ── 7. Classify service frequency of nearest stop ────────────────────────────
-# Inspect distribution before committing to breaks
+# ── 6. Extract car-dominated zones & classify PT accessibility/priority ──────
 cat("\nDeparture frequency summary:\n")
 print(summary(stops_poznan$n_departures))
 
-car_zones <- car_zones %>%
-  mutate(freq_service = case_when(
-    n_departures == 0                                                  ~ "No service",
-    n_departures < quantile(stops_poznan$n_departures, 0.25)          ~ "Low frequency",
-    n_departures < quantile(stops_poznan$n_departures, 0.75)          ~ "Medium frequency",
-    TRUE                                                               ~ "High frequency"
-  ) %>% factor(levels = c(
-    "No service", "Low frequency", "Medium frequency", "High frequency"
-  )))
-
-# ── 8. Investment priority — population × distance × frequency ───────────────
 pop_threshold <- quantile(pop_grid_r$working_age_pop, 0.80, na.rm = TRUE)
 cat("Population threshold (80th pct):", pop_threshold, "\n")
 
-car_zones <- car_zones %>%
-  mutate(
-    priority = case_when(
-      # Populated + no physical access → build new infrastructure
-      working_age_pop >= pop_threshold &
-        pt_accessibility %in% c("Very poor (> 1km)", "Poor (600m–1km)")        ~ "High priority — no nearby stop",
-      
-      # Populated + stop nearby but infrequent → improve service frequency
-      working_age_pop >= pop_threshold &
-        pt_accessibility %in% c("Moderate (300–600m)", "Good (< 300m)") &
-        freq_service %in% c("No service", "Low frequency")                     ~ "High priority — infrequent service",
-      
-      # Populated + moderate access + moderate frequency → incremental upgrade
-      working_age_pop >= pop_threshold &
-        pt_accessibility == "Moderate (300–600m)" &
-        freq_service == "Medium frequency"                                      ~ "Medium priority",
-      
-      # Populated + good access + frequent service → behavioural/modal gap
-      working_age_pop >= pop_threshold &
-        pt_accessibility == "Good (< 300m)" &
-        freq_service %in% c("Medium frequency", "High frequency")              ~ "Car preference gap",
-      
-      TRUE                                                                      ~ "Low priority"
-    ) %>% factor(levels = c(
-      "High priority — no nearby stop",
-      "High priority — infrequent service",
-      "Medium priority",
-      "Car preference gap",
-      "Low priority"
-    ))
-  )
-
+car_zones <- diff_sf %>%
+  filter(lisa_type == "High-High (car cluster)") %>%
+  classify_car_zones(stops_poznan, pop_threshold)
 
 # Remove pixels inside Poznań city boundary (focus on suburban gaps)
 poz <- st_read("poz.gpkg") ## donut
@@ -208,7 +83,7 @@ car_zones <- car_zones[outside, ]
 cat("\nPriority breakdown:\n")
 print(table(car_zones$priority))
 
-# ── 9. Diagnostic heatmap — frequency vs distance ────────────────────────────
+# ── 7. Diagnostic heatmap — frequency vs distance ────────────────────────────
 car_zones %>%
   st_drop_geometry() %>%
   filter(working_age_pop >= pop_threshold) %>%
@@ -232,7 +107,7 @@ car_zones %>%
     axis.text         = element_text(color = "white")
   )
 
-# ── 10. Final map ─────────────────────────────────────────────────────────────
+# ── 8. Final map ─────────────────────────────────────────────────────────────
 car_zones_wgs <- st_transform(car_zones, 4326)
 poz_wgs       <- st_transform(poz_r, 4326)
 

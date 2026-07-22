@@ -3,7 +3,8 @@ library(terra)
 library(tidyverse)
 
 # --- Config ---
-data_dir <- "/Users/wozni/Downloads/commuting_itineraries" 
+setwd("Data")
+data_dir <- "itineraries" # written by 4_r5r_route_batch.R
 
 # --- Find files ---
 pt_files  <- list.files(data_dir, pattern = "^pt_itineraries_.*\\.gpkg$",  full.names = TRUE)
@@ -82,3 +83,9 @@ car_itineraries <- matched |>
 
 cat(sprintf("PT rows : %d\nCar rows: %d\n",
             nrow(pt_itineraries), nrow(car_itineraries)))
+
+# --- Persist results so 6/8/9 can be run independently, without keeping ---
+# --- this session alive (each rasterized at 120m in process_county()) ---
+saveRDS(results, "itineraries_results.rds")
+saveRDS(pt_itineraries, "pt_itineraries.rds")
+saveRDS(car_itineraries, "car_itineraries.rds")

@@ -1,11 +1,11 @@
 library(sf)
-library(dplyr) 
+library(dplyr)
+library(ggplot2)
 library(ggnewscale)
 library(patchwork)
 library(osmdata)
-#library(terra)
 
-setwd("/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
+setwd("Data")
 
 # grids
 pop_grid <- st_read("pop_grid.gpkg")
@@ -41,9 +41,8 @@ osm_highways <- opq(bbox = bbox, timeout = 180) %>%
 osm_highways$osm_lines <- st_transform(osm_highways$osm_lines, crs = st_crs(boundaries))
 intersected_roads <- st_intersection(osm_highways$osm_lines, boundaries)
 
-# Spatially join the grids
+# Spatially join the grids (produces grid_id.x from wp_grid, grid_id.y from pop_grid)
 data_joined <- st_join(wp_grid, pop_grid)
-data_joined <- dplyr::bind_rows(wp_grid, pop_grid)
 
 # Aggregate the 'value' variable 'id'
 # Sum the 'value' for all points within each grid cell

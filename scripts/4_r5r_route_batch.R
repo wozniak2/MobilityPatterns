@@ -1,4 +1,4 @@
-#setwd("/home/adam/Dokumenty/commuting_patterns")
+setwd("Data")
 
 rJavaEnv::use_java(version = "21")
 library(dplyr)
@@ -41,8 +41,8 @@ municipalities <- c(unique(origins$municipality_short))
 workplace_cutoff <- 150
 pop_cutoff       <- 30
 
-# Output folder for .gpkg files
-output_dir <- "./itineraries2"
+# Output folder for .gpkg files (read back by 5_read_itineraries.R)
+output_dir <- "./itineraries"
 dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
 

@@ -1,7 +1,7 @@
 # =============================================================================
-# 8_OD_comparison.R
+# 10_OD_comparison.R
 # Standalone OD travel time comparison: PT vs car
-# Requires: commuting_itineraries/*.gpkg, poz.gpkg, pop_grid.gpkg, GTFS feeds
+# Requires: Data/itineraries/*.gpkg, poz.gpkg, pop_grid.gpkg, Data/gtfs/*.zip
 # Produces: Fig_PT_vs_car_travels.png
 #           Fig_PT_vs_car_travels_HEX.png
 #           Fig_PT_vs_car_travels_by_origin.png
@@ -18,8 +18,11 @@ library(tidyterra)
 library(scales)
 
 # ── 0. Paths — edit here only ─────────────────────────────────────────────────
-DATA_DIR  <- "/Users/wozni/Downloads/commuting_itineraries"
-GTFS_DIR  <- "/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data/gtfs"
+setwd("Data")
+source("lisa_priority_utils.R")
+
+DATA_DIR  <- "itineraries" # written by 4_r5r_route_batch.R
+GTFS_DIR  <- "gtfs"
 POZ_FILE  <- "poz.gpkg"
 POP_FILE  <- "pop_grid.gpkg"
 
@@ -41,15 +44,15 @@ matched <- inner_join(
 cat("Matched counties:", nrow(matched), "\n")
 
 pt_itineraries <- matched |>
-  pmap(\(county, pt_path, car_path)
+  pmap(\(county, pt_path, car_path) {
     st_read(pt_path, quiet = TRUE) |> mutate(county = county)
-  ) |>
+  }) |>
   bind_rows()
 
 car_itineraries <- matched |>
-  pmap(\(county, pt_path, car_path)
+  pmap(\(county, pt_path, car_path) {
     st_read(car_path, quiet = TRUE) |> mutate(county = county)
-  ) |>
+  }) |>
   bind_rows()
 
 cat(sprintf("PT rows : %d\nCar rows: %d\n",
@@ -103,7 +106,9 @@ cat("Lat range:", range(od_comparison$from_lat), "\n")
 
 # =============================================================================
 # 3. Rebuild car_zones (High-High LISA clusters) from scratch
-#    — mirrors the logic in 6_analyse_itineraries.R
+#    — uses the shared helpers in lisa_priority_utils.R (also used by
+#      9_analyse_itineraries.R) so the two scripts share one implementation
+#      of the LISA/accessibility/priority classification logic.
 # =============================================================================
 
 # 3a. Log-frequency difference surface
@@ -139,27 +144,7 @@ cell_size <- od_comparison |>
   arrange(from_lon) |> pull(from_lon) |> diff() |>
   (\(d) d[d > 1e-6])() |> min() * 111320  # approx degrees -> metres
 
-coords_mat <- st_coordinates(diff_sf)
-nb <- dnearneigh(coords_mat, d1 = 0, d2 = cell_size * 1.5)
-lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
-
-local_moran <- localmoran(diff_sf$diff, lw, zero.policy = TRUE)
-
-diff_sf <- diff_sf |>
-  mutate(
-    local_I   = local_moran[, "Ii"],
-    local_p   = local_moran[, "Pr(z != E(Ii))"],
-    local_sig = local_p < 0.05,
-    mean_diff = mean(diff, na.rm = TRUE),
-    lag_diff  = lag.listw(lw, diff, zero.policy = TRUE),
-    lisa_type = case_when(
-      local_sig & diff > mean_diff & lag_diff > mean_diff ~ "High-High (car cluster)",
-      local_sig & diff < mean_diff & lag_diff < mean_diff ~ "Low-Low (PT cluster)",
-      local_sig & diff > mean_diff & lag_diff < mean_diff ~ "High-Low (car outlier)",
-      local_sig & diff < mean_diff & lag_diff > mean_diff ~ "Low-High (PT outlier)",
-      TRUE                                                ~ "Not significant"
-    )
-  )
+diff_sf <- compute_lisa(diff_sf, cell_size)
 
 # 3c. Population
 pop_grid   <- st_read(POP_FILE, quiet = TRUE)
@@ -169,95 +154,14 @@ diff_sf$working_age_pop <- pop_grid_r$working_age_pop[
 ]
 
 # 3d. GTFS stops
-gtfs_files <- list.files(GTFS_DIR, pattern = "\\.zip$", full.names = TRUE)
-gtfs_list  <- gtfs_files |> set_names(basename(.)) |> map(read_gtfs)
-
-merge_table <- function(gtfs_list, tbl_name) {
-  gtfs_list |>
-    imap(\(gtfs, fname) {
-      tbl <- gtfs[[tbl_name]]
-      if (!is.null(tbl)) mutate(tbl, feed = fname) else NULL
-    }) |>
-    compact() |>
-    bind_rows()
-}
-
-stops      <- merge_table(gtfs_list, "stops")
-trips      <- merge_table(gtfs_list, "trips")
-stop_times <- merge_table(gtfs_list, "stop_times")
-
-stops      <- stops      |> mutate(stop_id = paste(feed, stop_id, sep = "_"))
-stop_times <- stop_times |>
-  select(-feed) |>
-  left_join(trips |> select(trip_id, route_id, feed), by = "trip_id") |>
-  mutate(stop_id = paste(feed, stop_id, sep = "_"))
-
-stops_poznan <- stops |>
-  left_join(stop_times |> count(stop_id, name = "n_departures"), by = "stop_id") |>
-  mutate(n_departures = replace_na(n_departures, 0)) |>
-  filter(stop_lon >= 16.5, stop_lon <= 17.5,
-         stop_lat >= 52.0, stop_lat <= 52.8) |>
-  st_as_sf(coords = c("stop_lon", "stop_lat"), crs = 4326) |>
-  st_transform(2180)
+stops_poznan <- load_gtfs_stops(GTFS_DIR)
 
 # 3e. Car zones classification
-car_zones <- diff_sf |>
-  filter(lisa_type == "High-High (car cluster)") |>
-  mutate(
-    dist_to_stop_m = as.numeric(
-      st_distance(geometry, stops_poznan)[
-        cbind(seq_len(nrow(diff_sf |> filter(lisa_type == "High-High (car cluster)"))),
-              st_nearest_feature(diff_sf |> filter(lisa_type == "High-High (car cluster)"),
-                                 stops_poznan))
-      ]
-    ),
-    n_departures = stops_poznan$n_departures[
-      st_nearest_feature(diff_sf |> filter(lisa_type == "High-High (car cluster)"),
-                         stops_poznan)
-    ],
-    pt_accessibility = case_when(
-      dist_to_stop_m <  300  ~ "Good (< 300m)",
-      dist_to_stop_m <  600  ~ "Moderate (300–600m)",
-      dist_to_stop_m < 1000  ~ "Poor (600m–1km)",
-      TRUE                   ~ "Very poor (> 1km)"
-    ) |> factor(levels = c(
-      "Good (< 300m)", "Moderate (300–600m)", "Poor (600m–1km)", "Very poor (> 1km)"
-    )),
-    freq_service = case_when(
-      n_departures == 0                                             ~ "No service",
-      n_departures < quantile(stops_poznan$n_departures, 0.25)     ~ "Low frequency",
-      n_departures < quantile(stops_poznan$n_departures, 0.75)     ~ "Medium frequency",
-      TRUE                                                          ~ "High frequency"
-    ) |> factor(levels = c(
-      "No service", "Low frequency", "Medium frequency", "High frequency"
-    ))
-  )
-
 pop_threshold <- quantile(pop_grid_r$working_age_pop, 0.80, na.rm = TRUE)
 
-car_zones <- car_zones |>
-  mutate(
-    priority = case_when(
-      working_age_pop >= pop_threshold &
-        pt_accessibility %in% c("Very poor (> 1km)", "Poor (600m–1km)")        ~ "High priority — no nearby stop",
-      working_age_pop >= pop_threshold &
-        pt_accessibility %in% c("Moderate (300–600m)", "Good (< 300m)") &
-        freq_service %in% c("No service", "Low frequency")                     ~ "High priority — infrequent service",
-      working_age_pop >= pop_threshold &
-        pt_accessibility == "Moderate (300–600m)" &
-        freq_service == "Medium frequency"                                      ~ "Medium priority",
-      working_age_pop >= pop_threshold &
-        pt_accessibility == "Good (< 300m)" &
-        freq_service %in% c("Medium frequency", "High frequency")              ~ "Car preference gap",
-      TRUE                                                                      ~ "Low priority"
-    ) |> factor(levels = c(
-      "High priority — no nearby stop",
-      "High priority — infrequent service",
-      "Medium priority",
-      "Car preference gap",
-      "Low priority"
-    ))
-  )
+car_zones <- diff_sf |>
+  filter(lisa_type == "High-High (car cluster)") |>
+  classify_car_zones(stops_poznan, pop_threshold)
 
 # Remove pixels inside Poznań city boundary
 poz     <- st_read(POZ_FILE, quiet = TRUE)

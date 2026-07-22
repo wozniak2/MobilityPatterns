@@ -1,7 +1,7 @@
 library(dplyr)
 library(ggplot2)
 
-setwd("/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
+setwd("Data")
 itineraries <- read.csv("itineraries_weights.csv")
 
 itineraries$has_rail <- ifelse(grepl("RAIL", itineraries$modes), 1, 0)

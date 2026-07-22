@@ -1,12 +1,17 @@
 library(dplyr)
+library(purrr)
 library(sf)
 library(ggplot2)
 library(terra)
 library(patchwork)
 
-# !!! This script requires the 'results' object produced by '5_read_itineraries.R' !!!
+setwd("Data")
 
-setwd("/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
+# Read itineraries produced by 5_read_itineraries.R (rasterized at 120m per county)
+results <- readRDS("itineraries_results.rds")
+cell_size <- 120
+
+poz <- st_read("poz.gpkg", quiet = TRUE) ## donut
 
 # ── Aggregate PT and Car rasters for visualisation ───────────────────────────
 

@@ -3,15 +3,7 @@
 #
 # Adds population and workplace weights to commuting itineraries.
 #
-# DEPENDENCY: Requires objects from 5_read_itineraries.R to be present
-# in the environment. Run that script first, or ensure the following
-# objects are loaded:
-#   - pt_itineraries  : sf object, raw PT itineraries (all counties combined)
-#   - car_itineraries : sf object, raw car itineraries (all counties combined)
-#   - pop_grid        : sf object, population grid (pop_grid.gpkg)
-#   - workplace_grid  : sf object, workplace grid (workplace_grid.gpkg)
-#
-# INPUT  : pt_itineraries, car_itineraries (from 5_read_itineraries.R)
+# INPUT  : pt_itineraries.rds, car_itineraries.rds (written by 5_read_itineraries.R)
 # OUTPUT : itineraries_weights.csv
 # =============================================================================
 
@@ -19,7 +11,12 @@ library(data.table)
 library(dplyr)
 library(sf)
 
-setwd("/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
+setwd("Data")
+
+#Read itineraries produced by 5_read_itineraries.R
+pt_itineraries  <- readRDS("pt_itineraries.rds")
+car_itineraries <- readRDS("car_itineraries.rds")
+
 #Read & prepare grids
 pop_grid <- st_read("pop_grid.gpkg")
 workplace_grid <- st_read("workplace_grid.gpkg")
@@ -88,8 +85,6 @@ itineraries_weights <- itineraries_pop |>
   ) |>
   st_drop_geometry() |>
   filter(!is.na(workplaces))
-
-write.csv(itineraries_weights, "itineraries_weights.csv", row.names = FALSE)
 
 cat("After workplace join:", nrow(itineraries_weights), "rows\n")
 
