@@ -36,7 +36,8 @@ transport geography and spatial information science audiences.
 
 ### Example result
 
-![PT vs car travel time competitiveness](Figures/Fig_PT_vs_car_travels.png)
+<img src="Figures/Fig_PT_vs_car_travels.png" alt="PT vs car travel time competitiveness" width="1800">
+
 
 Origin–destination pairs classified by PT/car travel time ratio (`10_OD_comparison.R`), one of several figures written to `Figures/`.
 
