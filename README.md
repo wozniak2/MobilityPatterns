@@ -32,10 +32,11 @@ The core workflow combines:
 - **Validation against census commuting flows**, comparing a population ×
   workplace gravity-style proxy for synthetic OD volume to the empirical
   LAU-to-LAU commuting matrix (`12_validate_od_flows.R`).
-- **Spatial regression comparison** (GWR vs. a Spatial Durbin Model vs. the
-  OLS baseline) on origin-zone PT/car travel-time ratios, motivated by the
-  significant global Moran's I found on the modal gap surface — plain OLS
-  residuals are not spatially independent (`13_gwr_sdm_comparison.R`).
+- **Spatial regression comparison** (OLS baseline, Lagrange Multiplier
+  tests, SAR, SEM, Spatial Durbin Model, and GWR) on origin-zone PT/car
+  travel-time ratios, motivated by the significant global Moran's I found
+  on the modal gap surface — plain OLS residuals are not spatially
+  independent (`13_gwr_sdm_comparison.R`).
 
 The output of this pipeline supports a manuscript analyzing modal gaps and
 PT accessibility deficits in the Poznań metropolitan area, intended for
@@ -262,24 +263,39 @@ has run at least once.
     *Output: `od_validation_neighborhood_to_core.csv`,
     `Figures/Fig_od_validation_scatter.png`,
     `Figures/Fig_od_validation_share_by_municipality.png`*
-13. **`13_gwr_sdm_comparison.R`** — Compares three models of the
-    origin-zone PT/car travel-time ratio: an OLS baseline, a Spatial
-    Durbin Model (SDM, via `spatialreg::lagsarlm(..., type = "Durbin")`),
-    and Geographically Weighted Regression (GWR, via
-    `GWmodel::gwr.basic()`). Aggregates `regression_data.csv` from
-    OD-pair level to one row per origin grid cell (mean `tt_ratio` across
-    that origin's destinations) since both spatial models need one
-    observation per location; builds a k-nearest-neighbour (k=8) spatial
-    weights matrix (not the 120m distance-band weights used for LISA,
-    since origin zones aren't on a regular raster after aggregation).
-    Reports AIC, pseudo-R², and residual Moran's I for all three models
-    side by side, the SDM's direct/indirect/total effect decomposition
-    (spillovers — does improving PT at one origin measurably help its
-    neighbors), and maps of GWR's local R² and local `dist_to_stop_m`
-    coefficient. Uses the same reduced predictor set as step 11's
-    `lm_base` (excludes `pt_duration_min`, uses `car_directness`).
-    *Output: `gwr_sdm_comparison.csv`, `gwr_local_coefficients.csv`,
-    `sdm_impacts.csv`, `Figures/Fig_GWR_local_R2.png`,
+13. **`13_gwr_sdm_comparison.R`** — Formally tests which spatial
+    specification best fits the origin-zone PT/car travel-time ratio,
+    following standard spatial-econometrics practice: fits OLS, runs
+    Lagrange Multiplier tests (`spdep::lm.LMtests()`, LMerr/LMlag +
+    robust versions) to diagnose whether the data supports a spatial lag
+    process, an error process, or both, then fits the three nested
+    models this points to — SAR (lag only), SEM (error only), and SDM
+    (Durbin: lag + spatially-lagged predictors) — and likelihood-ratio
+    tests SDM against SAR and SEM (`spatialreg::LR.sarlm()`) to confirm
+    the extra Durbin complexity is actually justified rather than
+    assumed. Also fits GWR (`GWmodel::gwr.basic()`), but positions it as
+    a secondary/exploratory tool answering a different question —
+    spatial *non-stationarity* (do relationships vary by place) rather
+    than spatial *dependence* (are values correlated with neighbors); a
+    prior run showed GWR's much higher local R² doesn't reduce residual
+    Moran's I anywhere near as much as SDM does, since GWR has no
+    lag/error term. GWR's local coefficient maps remain useful for RQ3
+    (which zones need which intervention type), just not as a competing
+    answer to "which spatial model is correct."
+    Aggregates `regression_data.csv` from OD-pair level to one row per
+    origin grid cell (mean `tt_ratio` across that origin's destinations)
+    since these models need one observation per location; builds a
+    k-nearest-neighbour (k=8) spatial weights matrix (not the 120m
+    distance-band weights used for LISA, since origin zones aren't on a
+    regular raster after aggregation). Reports AIC, pseudo-R², and
+    residual Moran's I for all five models side by side, plus the SDM's
+    direct/indirect/total effect decomposition (spillovers — does
+    improving PT at one origin measurably help its neighbors). Uses the
+    same reduced predictor set as step 11's `lm_base` (excludes
+    `pt_duration_min`, uses `car_directness`).
+    *Output: `gwr_sdm_comparison.csv`, `spatial_dependence_tests.csv`,
+    `sdm_impacts.csv`, `gwr_local_coefficients.csv`,
+    `Figures/Fig_GWR_local_R2.png`,
     `Figures/Fig_GWR_coef_dist_to_stop.png`*
 
 Steps 07–13 are exploratory/analytical and can be run independently once
