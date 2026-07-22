@@ -5,7 +5,7 @@ library(ggplot2)
 library(terra)
 library(patchwork)
 
-setwd("Data")
+setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 dir.create("../Figures", showWarnings = FALSE)
 
 # Read itineraries produced by 5_read_itineraries.R (rasterized at 120m per county)

@@ -5,7 +5,7 @@ library(sf)
 library(readr)
 library(terra)
 
-setwd("Data")
+setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 
 # boundary for Poznan agglomeration
 ap <- st_read("ap.gpkg")

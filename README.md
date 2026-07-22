@@ -29,6 +29,9 @@ The core workflow combines:
 - **Regression modelling** of the PT/car travel time ratio against network,
   stop-accessibility, and population-exposure variables built per OD pair
   (`11_regression_analysis.R`).
+- **Validation against census commuting flows**, comparing a population ×
+  workplace gravity-style proxy for synthetic OD volume to the empirical
+  LAU-to-LAU commuting matrix (`12_validate_od_flows.R`).
 
 The output of this pipeline supports a manuscript analyzing modal gaps and
 PT accessibility deficits in the Poznań metropolitan area, intended for
@@ -57,7 +60,8 @@ Origin–destination pairs classified by PT/car travel time ratio (`10_OD_compar
   - `maptiles`, `tidyterra` — basemap tiles for final figures (live tile
     server requests)
   - `data.table` — fast grouping in `6_add_weights_to_itineraries.R`
-  - `scales` — axis/label formatting in `10_OD_comparison.R`
+  - `scales` — axis/label formatting in `10_OD_comparison.R` and
+    `12_validate_od_flows.R`
   - `corrplot`, `car` — correlation matrix and VIF diagnostics in
     `11_regression_analysis.R`
 
@@ -86,7 +90,9 @@ Origin–destination pairs classified by PT/car travel time ratio (`10_OD_compar
   `Data/boundary.gpkg` (Poznań city; fetched from OSM automatically by
   `1_calculate_workplaces.R` if not present).
 - **OD flow data** — `Data/OD_flows.csv`, joined to `ap.gpkg` by `JPT_ID`
-  in `3_merge_pop_workplaces.R`.
+  in `3_merge_pop_workplaces.R`, and used as the empirical validation
+  target (joined by municipality name, `home_name`/`work_name`) in
+  `12_validate_od_flows.R`.
 
 > Specify whether raw input data is included in this repository, provided
 > via a separate download link, or restricted due to licensing.
@@ -106,6 +112,7 @@ scripts/
 ├── 9_analyse_itineraries.R
 ├── 10_OD_comparison.R
 ├── 11_regression_analysis.R
+├── 12_validate_od_flows.R
 └── lisa_priority_utils.R   <- shared helpers sourced by 9, 10 and 11
 Data/            <- input and intermediate data (see "Data availability")
 Figures/         <- output PNGs written by ggsave() calls (e.g. Fig_PT_vs_car_travels.png)
@@ -116,11 +123,13 @@ Figures/         <- output PNGs written by ggsave() calls (e.g. Fig_PT_vs_car_tr
 
 ## Running the pipeline
 
-All scripts assume the **working directory is the repository root** when
-launched (e.g. open an RStudio project at the repo root, or run
-`Rscript scripts/<name>.R` from the top level) — each script's first line
-of substance is `setwd("Data")`, so all file paths inside a script are
-relative to `Data/`.
+Each script's first line of substance is an absolute `setwd(...)` pointing
+at the local data folder (currently
+`C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data` — update this
+path in every script if you clone onto a different machine), so all file
+paths inside a script are relative to that folder. `lisa_priority_utils.R`
+is sourced via its own absolute path (in the git repo's `scripts/`
+folder), independent of the data location.
 
 ### Dependency graph
 
@@ -130,12 +139,15 @@ relative to `Data/`.
 2 ─┘        │    └─→ (standalone exploration)
             ├─→ 8
             ├─→ 9  ─┐
-            └─→ 11  │  (9, 10, 11 all source lisa_priority_utils.R;
-                     │   11 also reads pop_grid.gpkg from step 2)
+            ├─→ 11  │  (9, 10, 11 all source lisa_priority_utils.R;
+            └─→ 12  │   11 also reads pop_grid.gpkg from step 2)
 3 (diagnostic, reads outputs of 1 & 2, not required by 4)
 
 10 is standalone: rereads itineraries + GTFS + pop_grid from disk directly,
 independent of scripts 5-9.
+
+12 also reads workplace_grid.gpkg (step 1), ap.gpkg, and the external
+OD_flows.csv census matrix (restricted to neighborhood -> core flows).
 ```
 
 Note that **3 is not on the critical path to 4** — routing in step 4 reads
@@ -144,13 +156,13 @@ produces a diagnostic combined grid (`pop_workplaces_grid.gpkg`,
 `pop_wp_flows_grid.gpkg`) and introductory figures; run it whenever you
 want those, but it does not block later steps.
 
-**5 → {6, 8, 9, 11} is now file-based, not session-based.** Step 5
+**5 → {6, 8, 9, 11, 12} is now file-based, not session-based.** Step 5
 rasterizes and consolidates the raw per-municipality itinerary files and
 writes `itineraries_results.rds`, `pt_itineraries.rds`, and
-`car_itineraries.rds` to `Data/`. Steps 6, 8, 9, and 11 each `readRDS()`
-those files at the top, so they can be run independently in fresh R
-sessions, in any order relative to each other, as long as step 5 has run
-at least once.
+`car_itineraries.rds` to `Data/`. Steps 6, 8, 9, 11, and 12 each
+`readRDS()` those files at the top, so they can be run independently in
+fresh R sessions, in any order relative to each other, as long as step 5
+has run at least once.
 
 1. **`1_calculate_workplaces.R`** — Derives a 200 m workplace grid from
    BDOT10k building floor area (`work_bdot.gpkg`) and CEIDG small-business
@@ -201,10 +213,30 @@ at least once.
     `pop_grid.gpkg` from step 2, for the stop- and population-based
     variables.
     *Output: `regression_data.csv`*
+12. **`12_validate_od_flows.R`** — Validates synthetic routing output
+    against the empirical census LAU-to-LAU commuting matrix
+    (`OD_flows.csv`), restricted to **neighborhood → core** commuting:
+    flows from the municipalities surrounding Poznań into the Poznań core
+    itself. The core municipality is detected empirically (whichever
+    municipality nearly all destination points fall into — `workplace_grid.gpkg`
+    is itself clipped to the Poznań city boundary), and "neighborhood" is
+    every other municipality in `ap.gpkg`. Aggregates surviving grid-cell
+    OD pairs (union of car- and PT-reachable pairs) into a
+    population(origin) × workplaces(destination) gravity-style proxy for
+    synthetic flow volume per neighborhood municipality, matches against
+    census commuters by municipality name, and reports a Spearman rank
+    correlation plus a ranked bar chart comparing each municipality's
+    *share* of the total neighborhood→core flow (synthetic proxy and
+    census aren't on the same scale, so only relative share/rank is
+    directly comparable, not absolute magnitude).
+    *Output: `od_validation_neighborhood_to_core.csv`,
+    `Figures/Fig_od_validation_scatter.png`,
+    `Figures/Fig_od_validation_share_by_municipality.png`*
 
-Steps 7–9 and 11 are exploratory/analytical and can be run independently
-once step 6 (for 7) or step 5 (for 8, 9, 11) has produced its output.
-Step 10 is fully standalone and does not depend on steps 1–9.
+Steps 7–9, 11, and 12 are exploratory/analytical and can be run
+independently once step 6 (for 7) or step 5 (for 8, 9, 11, 12) has
+produced its output. Step 10 is fully standalone and does not depend on
+steps 1–9.
 
 ## Citation
 

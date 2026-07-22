@@ -3,7 +3,7 @@ library(terra)
 library(tidyverse)
 
 # --- Config ---
-setwd("Data")
+setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 data_dir <- "itineraries" # written by 4_r5r_route_batch.R
 
 # --- Find files ---

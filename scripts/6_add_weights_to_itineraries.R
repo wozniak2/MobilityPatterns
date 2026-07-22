@@ -11,7 +11,7 @@ library(data.table)
 library(dplyr)
 library(sf)
 
-setwd("Data")
+setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 
 #Read itineraries produced by 5_read_itineraries.R
 pt_itineraries  <- readRDS("pt_itineraries.rds")

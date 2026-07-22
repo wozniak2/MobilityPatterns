@@ -5,7 +5,7 @@ library(ggnewscale)
 library(patchwork)
 library(osmdata)
 
-setwd("Data")
+setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 
 # grids
 pop_grid <- st_read("pop_grid.gpkg")

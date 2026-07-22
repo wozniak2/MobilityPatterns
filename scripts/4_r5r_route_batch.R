@@ -1,4 +1,4 @@
-setwd("Data")
+setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 
 rJavaEnv::use_java(version = "21")
 library(dplyr)

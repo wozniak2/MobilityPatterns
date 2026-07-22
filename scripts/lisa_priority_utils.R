@@ -1,10 +1,14 @@
 # =============================================================================
 # lisa_priority_utils.R
 #
-# Shared helpers for the car-vs-PT LISA clustering and PT investment-priority
-# classification used by 9_analyse_itineraries.R and 10_OD_comparison.R.
-# Extracted so the two scripts don't maintain two independent copies of the
-# same clustering/classification logic.
+# NOT a standalone script — do not run this file directly, it has no
+# executable top level (only library() calls and function definitions).
+#
+# Shared helpers for the car-vs-PT LISA clustering, GTFS stop loading, and
+# PT investment-priority classification used by 9_analyse_itineraries.R,
+# 10_OD_comparison.R, and 11_regression_analysis.R. Each of those scripts
+# loads it automatically via source("<path to this file>") near the top —
+# just run them as normal, you never need to source this yourself.
 # =============================================================================
 
 library(dplyr)

@@ -18,8 +18,8 @@ library(tidyterra)
 library(scales)
 
 # ── 0. Paths — edit here only ─────────────────────────────────────────────────
-setwd("Data")
-source("lisa_priority_utils.R")
+setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
+source("C:/Users/wozni/OneDrive/Documents/GitHub/MobilityPatterns/scripts/lisa_priority_utils.R")
 dir.create("../Figures", showWarnings = FALSE)
 
 DATA_DIR  <- "itineraries" # written by 4_r5r_route_batch.R

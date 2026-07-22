@@ -3,7 +3,7 @@ library(osmdata)
 library(sf)
 library(tmap)
 
-setwd("Data")
+setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 
 #Set global parameters
 tmap_mode("view")

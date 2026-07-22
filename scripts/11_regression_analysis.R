@@ -18,8 +18,8 @@ library(terra)
 library(corrplot)
 library(car)
 
-setwd("Data")
-source("lisa_priority_utils.R")
+setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
+source("C:/Users/wozni/OneDrive/Documents/GitHub/MobilityPatterns/scripts/lisa_priority_utils.R")
 
 # ── Load itineraries produced by 5_read_itineraries.R ────────────────────────
 pt_itineraries  <- readRDS("pt_itineraries.rds")
