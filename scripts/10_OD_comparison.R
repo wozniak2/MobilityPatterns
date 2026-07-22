@@ -1,7 +1,7 @@
 # =============================================================================
 # 10_OD_comparison.R
 # OD travel time comparison: PT vs car
-# Requires: pt_itineraries.rds, car_itineraries.rds (from 5_read_itineraries.R),
+# Requires: pt_itineraries.rds, car_itineraries.rds (from 05_read_itineraries.R),
 #           poz.gpkg, pop_grid.gpkg, Data/gtfs/*.zip
 # Produces: Fig_PT_vs_car_travels.png
 #           Fig_PT_vs_car_travels_HEX.png
@@ -28,7 +28,7 @@ POZ_FILE  <- "poz.gpkg"
 POP_FILE  <- "pop_grid.gpkg"
 
 # =============================================================================
-# 1. Load itineraries produced by 5_read_itineraries.R
+# 1. Load itineraries produced by 05_read_itineraries.R
 # =============================================================================
 pt_itineraries  <- readRDS("pt_itineraries.rds")
 car_itineraries <- readRDS("car_itineraries.rds")
@@ -85,7 +85,7 @@ cat("Lat range:", range(od_comparison$from_lat), "\n")
 # =============================================================================
 # 3. Rebuild car_zones (High-High LISA clusters) from scratch
 #    — uses the shared helpers in lisa_priority_utils.R (also used by
-#      9_analyse_itineraries.R) so the two scripts share one implementation
+#      09_analyse_itineraries.R) so the two scripts share one implementation
 #      of the LISA/accessibility/priority classification logic.
 # =============================================================================
 

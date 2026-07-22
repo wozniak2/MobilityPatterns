@@ -1,12 +1,12 @@
 # =============================================================================
-# 8_plot_itineraries.R
+# 08_plot_itineraries.R
 #
 # Map-based flow-density visualisation of PT vs. car itineraries, plus
 # route-level descriptive statistics (duration, distance, transfers,
 # PT/car competitiveness breakdown) comparing the two modes per OD pair.
 #
 # INPUT  : itineraries_results.rds, pt_itineraries.rds, car_itineraries.rds
-#          (all from 5_read_itineraries.R)
+#          (all from 05_read_itineraries.R)
 # OUTPUT : Figures/Fig_cars_pt_itineraries.png
 #          Figures/Fig_duration_boxplot_pt_car.png
 #          Figures/Fig_distance_boxplot_pt_car.png
@@ -26,7 +26,7 @@ library(patchwork)
 setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 dir.create("../Figures", showWarnings = FALSE)
 
-# Read itineraries produced by 5_read_itineraries.R (rasterized at 120m per county)
+# Read itineraries produced by 05_read_itineraries.R (rasterized at 120m per county)
 results <- readRDS("itineraries_results.rds")
 cell_size <- 120
 

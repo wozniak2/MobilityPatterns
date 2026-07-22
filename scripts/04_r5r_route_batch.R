@@ -41,7 +41,7 @@ municipalities <- c(unique(origins$municipality_short))
 workplace_cutoff <- 150
 pop_cutoff       <- 30
 
-# Output folder for .gpkg files (read back by 5_read_itineraries.R)
+# Output folder for .gpkg files (read back by 05_read_itineraries.R)
 output_dir <- "./itineraries"
 dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 

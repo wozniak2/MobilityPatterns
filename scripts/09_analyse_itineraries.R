@@ -11,7 +11,7 @@ setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 source("C:/Users/wozni/OneDrive/Documents/GitHub/MobilityPatterns/scripts/lisa_priority_utils.R")
 dir.create("../Figures", showWarnings = FALSE)
 
-# Itineraries produced by 5_read_itineraries.R (rasterized at 120m per county)
+# Itineraries produced by 05_read_itineraries.R (rasterized at 120m per county)
 results <- readRDS("itineraries_results.rds")
 
 # ── 1. Combine counties & compute log-frequency difference ───────────────────

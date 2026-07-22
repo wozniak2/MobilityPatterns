@@ -6,8 +6,8 @@
 # and runs exploratory correlation/VIF/OLS diagnostics on the PT/car travel
 # time ratio.
 #
-# INPUT  : pt_itineraries.rds, car_itineraries.rds (from 5_read_itineraries.R)
-#          pop_grid.gpkg (from 2_distribute_population.R)
+# INPUT  : pt_itineraries.rds, car_itineraries.rds (from 05_read_itineraries.R)
+#          pop_grid.gpkg (from 02_distribute_population.R)
 #          gtfs/*.zip
 # OUTPUT : regression_data.csv
 # =============================================================================
@@ -21,7 +21,7 @@ library(car)
 setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 source("C:/Users/wozni/OneDrive/Documents/GitHub/MobilityPatterns/scripts/lisa_priority_utils.R")
 
-# ── Load itineraries produced by 5_read_itineraries.R ────────────────────────
+# ── Load itineraries produced by 05_read_itineraries.R ───────────────────────
 pt_itineraries  <- readRDS("pt_itineraries.rds")
 car_itineraries <- readRDS("car_itineraries.rds")
 
@@ -203,8 +203,9 @@ od_comparison <- od_comparison %>%
 # ── 9. Final regression dataset ───────────────────────────────────────────────
 regression_data <- od_comparison %>%
   select(
-    # Identifiers
-    from_id, to_id, county,
+    # Identifiers (origin coordinates kept for downstream spatial models,
+    # e.g. 13_gwr_sdm_comparison.R)
+    from_id, to_id, county, from_lon, from_lat,
 
     # Outcome
     tt_ratio,
@@ -272,12 +273,17 @@ corrplot(cor_vars, method = "color", type = "upper",
          mar = c(0, 0, 2, 0))
 
 # ── Check VIF — variance inflation factors ────────────────────────────────────
+# pt_duration_min is excluded: it is the numerator of tt_ratio, so including
+# it as a predictor is close to circular. car_speed_kmh is replaced with
+# car_directness (distance-only route-circuity measure) because car_speed_kmh
+# is derived from car_duration_min, the denominator of tt_ratio, and shares
+# that mechanical dependence with the outcome.
 vif_model <- lm(
-  tt_ratio ~ pt_duration_min + n_transfers + walk_share +
+  tt_ratio ~ n_transfers + walk_share +
     dist_to_stop_m + daily_departures +
     origin_dist_centre_km + dest_dist_centre_km +
     origin_working_age_pop + dest_working_age_pop + od_distance_km +
-    pt_directness + car_speed_kmh +
+    pt_directness + car_directness +
     nearest_stop_is_rail,
   data = regression_data
 )
@@ -297,8 +303,7 @@ lm_base <- lm(
     origin_working_age_pop +
     dest_working_age_pop +
     nearest_stop_is_rail +
-    car_speed_kmh +
-    pt_duration_min,
+    car_directness,
   data = regression_data
 )
 

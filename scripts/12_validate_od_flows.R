@@ -17,14 +17,14 @@
 # defensible to claim -- not absolute magnitude.
 #
 # CORE DETECTION: workplace_grid.gpkg is itself clipped to the Poznań city
-# boundary (see 1_calculate_workplaces.R), so "core" is detected empirically
+# boundary (see 01_calculate_workplaces.R), so "core" is detected empirically
 # as whichever municipality nearly all destination points fall into, rather
 # than hardcoding a name string. "Neighborhood" = the other municipalities in
 # ap.gpkg (the tightly-integrated agglomeration ring), since pop_grid.gpkg is
 # itself clipped to `ap` -- the wider poz.gpkg "donut" ring has no synthetic
 # coverage at all and is not part of "neighborhood" here.
 #
-# INPUT  : pt_itineraries.rds, car_itineraries.rds (from 5_read_itineraries.R)
+# INPUT  : pt_itineraries.rds, car_itineraries.rds (from 05_read_itineraries.R)
 #          pop_grid.gpkg, workplace_grid.gpkg (from steps 1-2)
 #          ap.gpkg (municipality boundaries, core + immediate ring)
 #          OD_flows.csv (census LAU-to-LAU commuting matrix)

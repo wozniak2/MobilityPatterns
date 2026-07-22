@@ -5,7 +5,7 @@
 # executable top level (only library() calls and function definitions).
 #
 # Shared helpers for the car-vs-PT LISA clustering, GTFS stop loading, and
-# PT investment-priority classification used by 9_analyse_itineraries.R,
+# PT investment-priority classification used by 09_analyse_itineraries.R,
 # 10_OD_comparison.R, and 11_regression_analysis.R. Each of those scripts
 # loads it automatically via source("<path to this file>") near the top —
 # just run them as normal, you never need to source this yourself.

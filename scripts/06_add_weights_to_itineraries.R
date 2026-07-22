@@ -1,9 +1,9 @@
 # =============================================================================
-# add_weights_to_itineraries.R
+# 06_add_weights_to_itineraries.R
 #
 # Adds population and workplace weights to commuting itineraries.
 #
-# INPUT  : pt_itineraries.rds, car_itineraries.rds (written by 5_read_itineraries.R)
+# INPUT  : pt_itineraries.rds, car_itineraries.rds (written by 05_read_itineraries.R)
 # OUTPUT : itineraries_weights.csv
 # =============================================================================
 
@@ -13,7 +13,7 @@ library(sf)
 
 setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 
-#Read itineraries produced by 5_read_itineraries.R
+#Read itineraries produced by 05_read_itineraries.R
 pt_itineraries  <- readRDS("pt_itineraries.rds")
 car_itineraries <- readRDS("car_itineraries.rds")
 
