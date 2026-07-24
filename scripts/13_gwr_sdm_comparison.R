@@ -32,14 +32,21 @@
 #
 # DESIGN CHOICE: regression_data.csv is one row per OD pair, but these
 # models need one observation per spatial location. Rows are aggregated to
-# one per ORIGIN grid cell (mean tt_ratio across that origin's
-# destinations); predictors that are already origin-constant
+# one per ORIGIN grid cell; predictors that are already origin-constant
 # (dist_to_stop_m, daily_departures, origin_dist_centre_km,
 # nearest_stop_is_rail, origin_working_age_pop) average to their exact
-# original value, so this loses no information for those. Predictors that
-# vary by destination (dest_dist_centre_km, dest_working_age_pop,
-# car_directness, walk_share, n_transfers) become an origin-level mean
-# across its destinations.
+# original value regardless of weighting, so a plain mean() is used for
+# those. Predictors that vary by destination (tt_ratio itself,
+# dest_dist_centre_km, dest_working_age_pop, car_directness, walk_share,
+# n_transfers) are instead aggregated as a workplace-weighted mean
+# (weighted.mean(..., w = dest_workplaces)): an origin reachable to one
+# destination with 5,000 jobs and one with 5 jobs should have its outcome
+# dominated by the former, not averaged with it unweighted -- a plain
+# mean() implicitly treats every reachable destination cell as equally
+# important regardless of how many people actually commute there.
+# dest_workplaces itself is not a model predictor (destinations are already
+# selected on a >=150-workplace cutoff in 04_r5r_route_batch.R, so its
+# variation mostly reflects that cutoff), it is used only as the weight.
 #
 # pt_duration_min and car_speed_kmh are deliberately excluded from the
 # formula: tt_ratio = pt_duration_min / car_duration_min, so pt_duration_min
@@ -80,7 +87,7 @@ model_formula <- tt_ratio ~ n_transfers + walk_share + daily_departures +
 regression_data <- read.csv("regression_data.csv")
 cat("regression_data.csv rows:", nrow(regression_data), "\n")
 
-required_cols <- c("from_id", "from_lon", "from_lat", all.vars(model_formula))
+required_cols <- c("from_id", "from_lon", "from_lat", "dest_workplaces", all.vars(model_formula))
 missing_cols  <- setdiff(required_cols, names(regression_data))
 if (length(missing_cols) > 0) {
   stop(
@@ -102,24 +109,29 @@ if (nrow(regression_data) == 0) {
 # Diagnostic: non-finite counts per formula variable, BEFORE aggregation --
 # every one of these already passed 11_regression_analysis.R's own filter(),
 # so none of them should show non-finite values here.
-formula_vars <- all.vars(model_formula)
+formula_vars <- c(all.vars(model_formula), "dest_workplaces")
 cat("\nNon-finite counts per column, in regression_data (pre-aggregation):\n")
 print(sapply(regression_data[formula_vars], function(x) sum(!is.finite(as.numeric(x)))))
+
+# Workplace-weighted mean for destination-varying variables (see header note
+# above); origin-constant variables use a plain mean() since weighting can't
+# change their (already-identical-within-group) value.
+wmean <- function(x, w) stats::weighted.mean(x, w, na.rm = TRUE)
 
 origin_data_raw <- regression_data %>%
   dplyr::group_by(from_id, from_lon, from_lat) %>%
   dplyr::summarise(
-    tt_ratio                = mean(tt_ratio, na.rm = TRUE),
-    n_transfers              = mean(n_transfers, na.rm = TRUE),
-    walk_share                = mean(walk_share, na.rm = TRUE),
+    tt_ratio                = wmean(tt_ratio, dest_workplaces),
+    n_transfers              = wmean(n_transfers, dest_workplaces),
+    walk_share                = wmean(walk_share, dest_workplaces),
     daily_departures          = mean(daily_departures, na.rm = TRUE),
     dist_to_stop_m            = mean(dist_to_stop_m, na.rm = TRUE),
     origin_dist_centre_km     = mean(origin_dist_centre_km, na.rm = TRUE),
-    dest_dist_centre_km       = mean(dest_dist_centre_km, na.rm = TRUE),
+    dest_dist_centre_km       = wmean(dest_dist_centre_km, dest_workplaces),
     origin_working_age_pop    = mean(origin_working_age_pop, na.rm = TRUE),
-    dest_working_age_pop      = mean(dest_working_age_pop, na.rm = TRUE),
+    dest_working_age_pop      = wmean(dest_working_age_pop, dest_workplaces),
     nearest_stop_is_rail      = mean(nearest_stop_is_rail, na.rm = TRUE),
-    car_directness             = mean(car_directness, na.rm = TRUE),
+    car_directness             = wmean(car_directness, dest_workplaces),
     n_destinations             = dplyr::n(),
     .groups = "drop"
   )

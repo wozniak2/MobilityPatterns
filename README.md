@@ -129,7 +129,7 @@ Data/            <- input and intermediate data (see "Data availability")
 Figures/         <- output PNGs written by ggsave() calls (e.g. Fig_PT_vs_car_travels.png)
 ```
 
-Filenames are zero-padded (`01`–`12`) so a plain alphabetical listing (file
+Filenames are zero-padded (`01`–`13`) so a plain alphabetical listing (file
 browsers, `ls`, GitHub's file view) sorts in actual execution order — a
 one-digit `1_...` would otherwise sort after `10_...`/`11_...`/`12_...` as
 plain text.
@@ -210,6 +210,13 @@ has run at least once.
 7. **`07_explore_travel_ratios.R`** — Exploratory analysis of PT/car travel
    time ratios: population-weighted distributions, rail vs. non-rail
    comparison, competitive vs. improvement-needed itineraries.
+   *Output: `Figures/Fig_travelratio_density.png`,
+   `Figures/Fig_travelratio_density_rail.png`,
+   `Figures/Fig_travelratio_density_norail.png`,
+   `Figures/Fig_travelratio_density_rail_vs_norail.png`,
+   `Figures/Fig_travelratio_cumulative_population.png`,
+   `Figures/Fig_travelratio_cumulative_population_rail_vs_norail.png`,
+   `competitive_by_municipality.csv`, `improvement_by_municipality.csv`*
 8. **`08_plot_itineraries.R`** — Generates map-based visualizations of
    itinerary flow density for PT vs. car, plus route-level descriptive
    statistics per OD pair (duration, distance, transfers, PT/car
@@ -225,9 +232,18 @@ has run at least once.
    density (mapped as the full four-quadrant HH/LL/HL/LH classification,
    not just the High-High subset), PT-accessibility classification against
    GTFS stop frequency, and the multi-dimensional PT investment priority
-   typology.
+   typology. Also cross-tabs rail access (nearest stop) against investment
+   priority class (checking whether "Car preference gap" cells already have
+   rail service), and re-runs LISA on a population/workplace-weighted
+   version of the modal gap surface (weighting each route by
+   origin population × destination workplaces instead of raw route count)
+   as a robustness check on whether the High-High car-dominant clusters are
+   demand-driven or partly an artifact of raw route presence in low-demand
+   cells.
    *Output: `Figures/Fig_LISA_cluster_map.png`,
-   `Figures/Fig_PT_investment_priority.png`*
+   `Figures/Fig_PT_investment_priority.png`,
+   `rail_access_by_priority.csv`,
+   `lisa_weighted_robustness_crosstab.csv`*
 10. **`10_OD_comparison.R`** — OD travel-time comparison (PT vs. car)
     across counties near Poznań, rebuilding its own LISA/car-zone
     classification from scratch (reusing the shared helpers in
@@ -247,7 +263,11 @@ has run at least once.
     outcome's own numerator) and use `car_directness` in place of
     `car_speed_kmh` (derived from `car_duration_min`, the outcome's
     denominator) — both share mechanical components with `tt_ratio` and
-    would otherwise be close to circular as predictors.
+    would otherwise be close to circular as predictors. Also attaches
+    `dest_workplaces` (workplace count at the destination cell, from
+    `workplace_grid.gpkg`); it is not itself a model predictor, it is
+    carried through purely as the aggregation weight step 13 uses when
+    collapsing to origin level.
     *Output: `regression_data.csv`*
 12. **`12_validate_od_flows.R`** — Validates synthetic routing output
     against the empirical census LAU-to-LAU commuting matrix
@@ -262,14 +282,19 @@ has run at least once.
     from `poz.gpkg`, and "neighborhood" is every municipality in
     `ap.gpkg`. Aggregates surviving grid-cell
     OD pairs (union of car- and PT-reachable pairs) into a
-    population(origin) × workplaces(destination) gravity-style proxy for
-    synthetic flow volume per neighborhood municipality, matches against
-    census commuters by municipality name, and reports a Spearman rank
-    correlation plus a ranked bar chart comparing each municipality's
-    *share* of the total neighborhood→core flow (synthetic proxy and
-    census aren't on the same scale, so only relative share/rank is
-    directly comparable, not absolute magnitude).
+    population(origin) × workplaces(destination) / travel_time^β
+    distance-decayed gravity-style proxy for synthetic flow volume per
+    neighborhood municipality. β is grid-searched over {0, 0.5, 1, 1.5, 2}
+    (β=0 = plain undecayed pop×workplaces) and selected by whichever value
+    maximises the log-log OLS R² against census commuters — R² rather than
+    Spearman ρ, since ρ is rank-only and ties across nearby β values.
+    Matches against census commuters by municipality name, and reports the
+    Spearman rank correlation plus a ranked bar chart comparing each
+    municipality's *share* of the total neighborhood→core flow (synthetic
+    proxy and census aren't on the same scale, so only relative share/rank
+    is directly comparable, not absolute magnitude).
     *Output: `od_validation_neighborhood_to_core.csv`,
+    `od_validation_beta_sensitivity.csv`,
     `Figures/Fig_od_validation_scatter.png`,
     `Figures/Fig_od_validation_share_by_municipality.png`*
 13. **`13_gwr_sdm_comparison.R`** — Formally tests which spatial
@@ -292,8 +317,13 @@ has run at least once.
     (which zones need which intervention type), just not as a competing
     answer to "which spatial model is correct."
     Aggregates `regression_data.csv` from OD-pair level to one row per
-    origin grid cell (mean `tt_ratio` across that origin's destinations)
-    since these models need one observation per location; builds a
+    origin grid cell since these models need one observation per location.
+    Origin-constant predictors (e.g. `dist_to_stop_m`, `origin_dist_centre_km`)
+    use a plain mean; `tt_ratio` and other destination-varying predictors
+    use a `dest_workplaces`-weighted mean across that origin's destinations,
+    so a destination with many more jobs dominates the origin's outcome
+    rather than being averaged in unweighted alongside a near-empty one.
+    Builds a
     k-nearest-neighbour (k=8) spatial weights matrix (not the 120m
     distance-band weights used for LISA, since origin zones aren't on a
     regular raster after aggregation). Reports AIC, pseudo-R², and

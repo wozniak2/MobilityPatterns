@@ -110,6 +110,7 @@ classify_car_zones <- function(car_zones, stops_poznan, pop_threshold) {
   car_zones <- car_zones %>%
     mutate(
       n_departures   = stops_poznan$n_departures[nearest_stop_idx],
+      nearest_stop_is_rail = stops_poznan$is_rail[nearest_stop_idx],
       dist_to_stop_m = as.numeric(
         st_distance(geometry, stops_poznan)[cbind(seq_len(nrow(car_zones)), nearest_stop_idx)]
       ),

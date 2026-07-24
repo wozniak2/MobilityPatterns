@@ -9,12 +9,23 @@
 #
 # Synthetic itineraries carry no modelled trip volume -- r5r only tells you
 # whether a grid-cell pair is routable, not how many people use it -- so we
-# proxy volume with a population x workplace gravity weight per surviving
-# grid-cell OD pair, aggregated to the municipality level, and compare that
-# against census commuter counts via rank correlation (Spearman): since the
-# proxy is not on the same scale as a literal commuter count, only a
-# monotonic relationship (and relative share across municipalities) is
-# defensible to claim -- not absolute magnitude.
+# proxy volume with a population x workplace gravity weight, deflated by a
+# distance-decay term (travel_time_min^beta) per surviving grid-cell OD pair,
+# aggregated to the municipality level, and compare that against census
+# commuter counts via rank correlation (Spearman): since the proxy is not on
+# the same scale as a literal commuter count, only a monotonic relationship
+# (and relative share across municipalities) is defensible to claim -- not
+# absolute magnitude. Several decay exponents are tested (step 8) rather than
+# assumed, and whichever fits best (highest Spearman rho) is used for the
+# headline plots; beta = 0 recovers the plain undecayed pop x workplaces
+# proxy as a baseline.
+#
+# Ring-to-ring and core-to-ring flows are NOT validated even though
+# OD_flows.csv has them, because workplace_grid.gpkg (01_calculate_workplaces.R)
+# is clipped to the Poznan city boundary only -- there is essentially no
+# modelled workplace mass anywhere in the ring, so a pop x workplaces proxy
+# for a ring destination would be meaningless. Neighborhood -> core is the
+# only comparison the synthetic data actually supports.
 #
 # CORE / NEIGHBORHOOD: verified directly against the two boundary files
 # (see below), not assumed from their filenames. ap.gpkg contains the ring
@@ -53,6 +64,14 @@ dir.create("../Figures", showWarnings = FALSE)
 
 normalize_name <- function(x) x %>% str_trim() %>% str_squish()
 
+# ap.gpkg/poz.gpkg's JPT_NAZWA_ carries the full official form with an
+# administrative-type suffix (e.g. "Luboń - gmina miejska", "Poznań - gmina
+# miejska"), while OD_flows.csv's home_name/work_name use the plain
+# municipality name ("Luboń", "Poznań") -- confirmed directly against the
+# CSV. Without stripping this suffix, every neighborhood/core name fails to
+# match OD_flows and the neighborhood -> core filter silently returns 0 rows.
+strip_admin_suffix <- function(x) str_remove(x, "\\s*-\\s*gmina (miejska|wiejska)$")
+
 # ── 1. Load synthetic itineraries and base grids ─────────────────────────────
 pt_itineraries  <- readRDS("pt_itineraries.rds")
 car_itineraries <- readRDS("car_itineraries.rds")
@@ -67,12 +86,12 @@ work_grid <- st_read("workplace_grid.gpkg", quiet = TRUE) %>% st_transform(2180)
 ap <- st_read("ap.gpkg", quiet = TRUE) %>%
   select(JPT_NAZWA_) %>%
   st_transform(2180) %>%
-  mutate(JPT_NAZWA_ = normalize_name(JPT_NAZWA_))
+  mutate(JPT_NAZWA_ = normalize_name(JPT_NAZWA_) %>% strip_admin_suffix())
 
 poz <- st_read("poz.gpkg", quiet = TRUE) %>%
   select(JPT_NAZWA_) %>%
   st_transform(2180) %>%
-  mutate(JPT_NAZWA_ = normalize_name(JPT_NAZWA_))
+  mutate(JPT_NAZWA_ = normalize_name(JPT_NAZWA_) %>% strip_admin_suffix())
 
 if (nrow(poz) != 1) {
   stop(
@@ -96,6 +115,27 @@ od_pairs <- bind_rows(
   distinct(from_id, to_id, .keep_all = TRUE)
 
 cat("Distinct grid-cell OD pairs:", nrow(od_pairs), "\n")
+
+# ── 2b. Travel-time impedance for each grid-cell OD pair ─────────────────────
+# Car routing succeeds almost everywhere (the same reason the car/PT union is
+# used above as the proxy for "all attempted pairs"), so car duration is the
+# primary impedance measure; the rare car-unreachable pair (routed only by
+# PT) falls back to its PT duration. Used below to add distance decay to the
+# gravity proxy -- without it, a pop x workplaces product treats a pair 5
+# minutes apart the same as one 80 minutes apart, which is not how commuting
+# mass actually distributes.
+car_duration <- car_itineraries %>% st_drop_geometry() %>%
+  group_by(from_id, to_id) %>%
+  summarise(car_duration_min = min(total_duration), .groups = "drop")
+
+pt_duration <- pt_itineraries %>% st_drop_geometry() %>%
+  group_by(from_id, to_id) %>%
+  summarise(pt_duration_min = min(total_duration), .groups = "drop")
+
+od_pairs <- od_pairs %>%
+  left_join(car_duration, by = c("from_id", "to_id")) %>%
+  left_join(pt_duration,  by = c("from_id", "to_id")) %>%
+  mutate(travel_time_min = coalesce(car_duration_min, pt_duration_min))
 
 # ── 3. Attach population (origin), workplaces (destination), municipality ───
 origin_sf <- od_pairs %>%
@@ -145,16 +185,30 @@ od_pairs <- od_pairs %>%
 cat("Grid-cell OD pairs, neighborhood -> core only:", nrow(od_pairs), "\n")
 
 # ── 5. Aggregate to per-municipality synthetic "volume" into the core ────────
-# Gravity-style proxy: population(origin) x workplaces(destination), summed
-# over every surviving grid-cell pair between each neighborhood municipality
-# and the core.
+# Gravity-style proxy: population(origin) x workplaces(destination) / travel
+# time^beta, summed over every surviving grid-cell pair between each
+# neighborhood municipality and the core. beta = 0 recovers the original
+# undecayed pop x workplaces proxy; beta > 0 progressively down-weights
+# distant connections. Rather than assuming a decay exponent, several values
+# are computed here and compared against census commuters below (step 8) to
+# pick whichever actually fits best.
+gravity_betas <- c(0, 0.5, 1, 1.5, 2)
+
 synthetic_flows <- od_pairs %>%
   group_by(home_municipality) %>%
-  summarise(
-    synthetic_connections = n(),
-    synthetic_volume = sum(working_age_pop * workplaces, na.rm = TRUE),
-    .groups = "drop"
-  )
+  summarise(synthetic_connections = n(), .groups = "drop")
+
+for (beta in gravity_betas) {
+  col_name <- paste0("synthetic_volume_beta_", beta)
+  vol <- od_pairs %>%
+    group_by(home_municipality) %>%
+    summarise(
+      volume = sum(working_age_pop * workplaces / travel_time_min^beta, na.rm = TRUE),
+      .groups = "drop"
+    )
+  names(vol)[names(vol) == "volume"] <- col_name
+  synthetic_flows <- left_join(synthetic_flows, vol, by = "home_municipality")
+}
 
 # ── 6. Load & filter census flows to neighborhood -> core only ───────────────
 od_flows <- read_csv("OD_flows.csv", show_col_types = FALSE) %>%
@@ -183,18 +237,60 @@ comparison <- full_join(
 
 cat(sprintf(
   "\nMatched municipalities: %d | synthetic-only: %d | census-only: %d\n",
-  sum(!is.na(comparison$synthetic_volume) & !is.na(comparison$commuters)),
-  sum(!is.na(comparison$synthetic_volume) &  is.na(comparison$commuters)),
-  sum( is.na(comparison$synthetic_volume) & !is.na(comparison$commuters))
+  sum(!is.na(comparison$synthetic_volume_beta_0) & !is.na(comparison$commuters)),
+  sum(!is.na(comparison$synthetic_volume_beta_0) &  is.na(comparison$commuters)),
+  sum( is.na(comparison$synthetic_volume_beta_0) & !is.na(comparison$commuters))
 ))
+
+# ── 8. Distance-decay sensitivity: which beta best matches census commuters ──
+# Spearman rank correlation and a log-log OLS fit (R^2) are computed for each
+# decay exponent tested in step 5, rather than assuming one a priori. Beta is
+# selected by log-log R^2, not Spearman rho: rho is coarse (rank-only, so it
+# ties across nearby beta values -- 0.5 and 1 tied at rho = 0.903 here) and
+# R^2 is the more appropriate continuous goodness-of-fit measure for choosing
+# a continuous parameter, since it's already the metric implied by fitting
+# the proxy in log-log form. Whichever beta maximises R^2 becomes the
+# headline "synthetic_volume" proxy used for the plots below.
+beta_results <- map_dfr(gravity_betas, function(beta) {
+  col <- paste0("synthetic_volume_beta_", beta)
+  m <- comparison %>%
+    filter(!is.na(.data[[col]]), !is.na(commuters)) %>%
+    mutate(volume = .data[[col]])
+  cor_test <- cor.test(m$volume, m$commuters, method = "spearman")
+  ols <- lm(log(commuters) ~ log(volume), data = m)
+  tibble(
+    beta = beta,
+    n = nrow(m),
+    spearman_rho = unname(cor_test$estimate),
+    p_value = cor_test$p.value,
+    loglog_r2 = summary(ols)$r.squared
+  )
+})
+
+cat("\nGravity proxy performance across distance-decay exponents (beta = 0 is undecayed):\n")
+print(beta_results)
+write.csv(beta_results, "od_validation_beta_sensitivity.csv", row.names = FALSE)
+
+best_beta <- beta_results$beta[which.max(beta_results$loglog_r2)]
+cat(sprintf(
+  "\nBest-performing decay exponent: beta = %s (log-log R^2 = %.3f, Spearman rho = %.3f)\n",
+  best_beta, max(beta_results$loglog_r2),
+  beta_results$spearman_rho[beta_results$beta == best_beta]
+))
+
+comparison <- comparison %>%
+  mutate(synthetic_volume = .data[[paste0("synthetic_volume_beta_", best_beta)]])
 
 write.csv(comparison, "od_validation_neighborhood_to_core.csv", row.names = FALSE)
 
-# ── 8. Rank correlation on matched municipalities ─────────────────────────────
+# ── 8b. Headline rank correlation, using the best-fitting decay exponent ────
 matched <- comparison %>% filter(!is.na(synthetic_volume), !is.na(commuters))
 
 od_cor <- cor.test(matched$synthetic_volume, matched$commuters, method = "spearman")
-cat("\nSpearman correlation (synthetic volume vs. census commuters, neighborhood -> core):\n")
+cat(sprintf(
+  "\nSpearman correlation (synthetic volume, beta = %s, vs. census commuters, neighborhood -> core):\n",
+  best_beta
+))
 print(od_cor)
 
 # ── 9. Scatter plot (relationship check) ──────────────────────────────────────
@@ -205,10 +301,10 @@ ggplot(matched, aes(x = commuters, y = synthetic_volume)) +
   scale_y_log10() +
   labs(
     title = "Neighborhood -> core commuting: synthetic vs. census",
-    subtitle = sprintf("Spearman rho = %.2f, n = %d municipalities -> %s",
-                        od_cor$estimate, nrow(matched), core_name),
+    subtitle = sprintf("Spearman rho = %.2f, beta = %s, n = %d municipalities -> %s",
+                        od_cor$estimate, best_beta, nrow(matched), core_name),
     x = "Census commuters (log scale)",
-    y = "Synthetic volume proxy: pop x workplaces (log scale)"
+    y = sprintf("Synthetic volume proxy: pop x workplaces / time^%s (log scale)", best_beta)
   ) +
   theme_minimal()
 
@@ -216,9 +312,11 @@ ggsave("../Figures/Fig_od_validation_scatter.png", width = 8, height = 6, dpi = 
 cat("Saved Figures/Fig_od_validation_scatter.png\n")
 
 # ── 10. Ranked share-by-municipality bar chart ────────────────────────────────
-# synthetic_volume and commuters are on different scales (an unweighted
+# synthetic_volume and commuters are on different scales (a distance-decayed
 # gravity proxy vs. actual people), so only their SHARE of the total
 # neighborhood -> core flow is directly comparable across the two sources.
+synthetic_label <- sprintf("Synthetic (pop x workplaces / time^%s)", best_beta)
+
 plot_data <- matched %>%
   mutate(
     synthetic_share = synthetic_volume / sum(synthetic_volume),
@@ -228,7 +326,7 @@ plot_data <- matched %>%
   pivot_longer(cols = c(synthetic_share, census_share),
                names_to = "source", values_to = "share") %>%
   mutate(source = recode(source,
-                          synthetic_share = "Synthetic (pop x workplaces)",
+                          synthetic_share = synthetic_label,
                           census_share    = "Census"))
 
 ggplot(plot_data, aes(x = reorder(home_municipality, share), y = share, fill = source)) +

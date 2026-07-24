@@ -182,8 +182,15 @@ cat("GTFS service days:", service_days, "\n")
 od_comparison <- od_comparison %>%
   mutate(daily_departures = n_departures / service_days)
 
-# ── 8. Origin & destination population density ───────────────────────────────
-pop_grid_2180 <- st_read("pop_grid.gpkg", quiet = TRUE) %>%
+# ── 8. Origin & destination population density, destination workplaces ──────
+# dest_workplaces (unlike dest_working_age_pop) is carried through purely as
+# an aggregation weight for 13_gwr_sdm_comparison.R -- it is not itself a
+# model predictor there, since destinations are already selected on having
+# >=150 workplaces (04_r5r_route_batch.R cutoff), so its variation mostly
+# reflects that cutoff rather than an independent effect worth modelling.
+pop_grid_2180  <- st_read("pop_grid.gpkg", quiet = TRUE) %>%
+  st_transform(2180)
+work_grid_2180 <- st_read("workplace_grid.gpkg", quiet = TRUE) %>%
   st_transform(2180)
 
 dest_sf_2180 <- od_comparison %>%
@@ -197,6 +204,9 @@ od_comparison <- od_comparison %>%
     ],
     dest_working_age_pop = pop_grid_2180$working_age_pop[
       st_nearest_feature(dest_sf_2180, pop_grid_2180)
+    ],
+    dest_workplaces = work_grid_2180$workplaces[
+      st_nearest_feature(dest_sf_2180, work_grid_2180)
     ]
   )
 
@@ -230,7 +240,7 @@ regression_data <- od_comparison %>%
 
     # Destination characteristics
     dest_dist_centre_km, dest_type,
-    dest_working_age_pop,
+    dest_working_age_pop, dest_workplaces,
 
     # Classification
     competitive
@@ -244,6 +254,7 @@ regression_data <- od_comparison %>%
     !is.na(dest_dist_centre_km),
     !is.na(origin_working_age_pop),
     !is.na(dest_working_age_pop),
+    !is.na(dest_workplaces),
     is.finite(tt_ratio),
     is.finite(pt_directness),
     is.finite(car_directness)

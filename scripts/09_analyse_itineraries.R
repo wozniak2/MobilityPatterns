@@ -133,6 +133,36 @@ car_zones <- car_zones[outside, ]
 cat("\nPriority breakdown:\n")
 print(table(car_zones$priority))
 
+# ── 6b. Rail access by investment priority class ─────────────────────────────
+# "Car preference gap" cells are, by definition (Table 3 typology), already
+# well served on physical accessibility and frequency -- car use there
+# reflects a behavioural preference, not an infrastructure gap. This checks
+# how much of that class is specifically explained by rail vs. bus-only
+# service: a high rail share would suggest the remaining barrier is
+# service-quality/behavioural even where the mode itself is rail, while a
+# low rail share would suggest upgrading bus corridors to rail-equivalent
+# service might close the gap.
+rail_by_priority <- car_zones %>%
+  st_drop_geometry() %>%
+  count(priority, nearest_stop_is_rail) %>%
+  group_by(priority) %>%
+  mutate(share = n / sum(n)) %>%
+  ungroup()
+
+cat("\nRail access by investment priority class:\n")
+print(rail_by_priority)
+write.csv(rail_by_priority, "rail_access_by_priority.csv", row.names = FALSE)
+
+car_pref_rail_share <- rail_by_priority %>%
+  filter(priority == "Car preference gap", nearest_stop_is_rail) %>%
+  pull(share)
+if (length(car_pref_rail_share) == 0) car_pref_rail_share <- 0
+
+cat(sprintf(
+  "\nOf cells classified as 'Car preference gap', %.1f%% already have rail access at the nearest stop.\n",
+  100 * car_pref_rail_share
+))
+
 # ── 7. Diagnostic heatmap — frequency vs distance ────────────────────────────
 car_zones %>%
   st_drop_geometry() %>%
@@ -236,3 +266,119 @@ ggplot() +
 print(table(car_zones$priority))
 
 ggsave("../Figures/Fig_PT_investment_priority.png", width = 12, height = 9, dpi = 300)
+
+# ── 9. Robustness check: population/workplace-weighted modal gap surface ────
+# The modal gap surface above (step 1) counts raw ROUTES through each pixel
+# -- a route from a near-empty grid cell counts the same as one from a
+# densely populated cell. This rebuilds the same log-difference surface but
+# weights each itinerary by working_age_pop(origin) x workplaces(destination)
+# before rasterizing, then re-runs LISA, to check whether the car-dominant
+# (HH) clusters reported above are genuinely demand-driven or partly an
+# artifact of raw route presence in low-demand cells.
+cat("\n=== Robustness check: population/workplace-weighted modal gap ===\n")
+
+# itineraries_results.rds (loaded at the top) only carries the pre-rasterized
+# counts, not the route geometries needed to rasterize by weight instead of
+# unit count -- load the raw itineraries (also written by
+# 05_read_itineraries.R) for that.
+pt_itineraries  <- readRDS("pt_itineraries.rds")
+car_itineraries <- readRDS("car_itineraries.rds")
+
+work_grid <- st_read("workplace_grid.gpkg", quiet = TRUE)
+pop_grid_2180  <- pop_grid_r  # already population grid transformed to 2180 (step 5)
+work_grid_2180 <- st_transform(work_grid, 2180)
+
+# Per-OD-pair weight, joined by nearest-feature (confirmed to match
+# st_intersects exactly for these grid-derived coordinates -- see
+# 12_validate_od_flows.R diagnostics; nearest-feature used here so a point
+# can never fail to match).
+od_weights <- bind_rows(
+  car_itineraries %>% st_drop_geometry() %>%
+    distinct(from_id, to_id, from_lon, from_lat, to_lon, to_lat),
+  pt_itineraries  %>% st_drop_geometry() %>%
+    distinct(from_id, to_id, from_lon, from_lat, to_lon, to_lat)
+) %>%
+  distinct(from_id, to_id, .keep_all = TRUE)
+
+origin_pts <- od_weights %>% distinct(from_id, from_lon, from_lat) %>%
+  st_as_sf(coords = c("from_lon", "from_lat"), crs = 4326) %>% st_transform(2180)
+dest_pts <- od_weights %>% distinct(to_id, to_lon, to_lat) %>%
+  st_as_sf(coords = c("to_lon", "to_lat"), crs = 4326) %>% st_transform(2180)
+
+origin_pop <- tibble(
+  from_id = origin_pts$from_id,
+  origin_pop = pop_grid_2180$working_age_pop[st_nearest_feature(origin_pts, pop_grid_2180)]
+)
+dest_wp <- tibble(
+  to_id = dest_pts$to_id,
+  dest_workplaces = work_grid_2180$workplaces[st_nearest_feature(dest_pts, work_grid_2180)]
+)
+
+od_weights <- od_weights %>%
+  left_join(origin_pop, by = "from_id") %>%
+  left_join(dest_wp, by = "to_id") %>%
+  mutate(weight = origin_pop * dest_workplaces) %>%
+  select(from_id, to_id, weight)
+
+pt_itineraries_w  <- pt_itineraries  %>% left_join(od_weights, by = c("from_id", "to_id"))
+car_itineraries_w <- car_itineraries %>% left_join(od_weights, by = c("from_id", "to_id"))
+
+# Single global raster (rather than 05's per-county loop) is sufficient for
+# a robustness comparison and avoids re-deriving that per-county mosaicking
+# machinery here.
+rasterize_weighted <- function(itin_sf, resolution) {
+  itin_3857 <- st_transform(itin_sf, 3857)
+  v <- vect(itin_3857)
+  r <- rast(ext(v), resolution = resolution, crs = "EPSG:3857")
+  rasterize(v, r, field = "weight", fun = "sum", background = NA)
+}
+
+r_car_w <- rasterize_weighted(car_itineraries_w, cell_size)
+r_pt_w  <- rasterize_weighted(pt_itineraries_w, cell_size)
+
+df_cit_w <- as.data.frame(r_car_w, xy = TRUE) %>% rename(weight = 3)
+df_pit_w <- as.data.frame(r_pt_w,  xy = TRUE) %>% rename(weight = 3)
+
+diff_df_w <- full_join(
+  df_cit_w %>% mutate(log_freq = log1p(weight)) %>% select(x, y, log_freq),
+  df_pit_w %>% mutate(log_freq = log1p(weight)) %>% select(x, y, log_freq),
+  by     = c("x", "y"),
+  suffix = c("_car", "_pt")
+) %>%
+  mutate(
+    across(starts_with("log_freq"), ~replace_na(.x, 0)),
+    diff = log_freq_car - log_freq_pt
+  )
+
+diff_sf_w <- diff_df_w %>%
+  filter(!is.na(diff)) %>%
+  st_as_sf(coords = c("x", "y"), crs = 3857) %>%
+  st_transform(2180)
+
+diff_sf_w <- compute_lisa(diff_sf_w, cell_size)
+
+cat("\nWeighted LISA cluster breakdown:\n")
+print(table(diff_sf_w$lisa_type))
+cat("\nUnweighted LISA cluster breakdown (for comparison):\n")
+print(table(diff_sf$lisa_type))
+
+# Cross-tab via nearest-feature match (grids from the two rasterization
+# passes aren't guaranteed pixel-aligned, so match by location rather than
+# assuming identical x/y grids).
+nearest_w <- st_nearest_feature(diff_sf, diff_sf_w)
+diff_sf$lisa_type_weighted <- diff_sf_w$lisa_type[nearest_w]
+
+cat("\nCross-tab: unweighted vs. population/workplace-weighted LISA classification:\n")
+lisa_crosstab <- table(unweighted = diff_sf$lisa_type, weighted = diff_sf$lisa_type_weighted)
+print(lisa_crosstab)
+write.csv(as.data.frame(lisa_crosstab), "lisa_weighted_robustness_crosstab.csv", row.names = FALSE)
+
+agreement <- mean(diff_sf$lisa_type == diff_sf$lisa_type_weighted)
+cat(sprintf("\nOverall classification agreement: %.1f%%\n", 100 * agreement))
+
+hh_original <- diff_sf %>% st_drop_geometry() %>% filter(lisa_type == "High-High (car cluster)")
+hh_agreement <- mean(hh_original$lisa_type_weighted == "High-High (car cluster)")
+cat(sprintf(
+  "Of cells originally classified as car-dominant (HH), %.1f%% remain so once weighted by population/workplaces.\n",
+  100 * hh_agreement
+))
