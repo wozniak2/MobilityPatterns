@@ -323,21 +323,37 @@ od_weights <- od_weights %>%
 pt_itineraries_w  <- pt_itineraries  %>% left_join(od_weights, by = c("from_id", "to_id"))
 car_itineraries_w <- car_itineraries %>% left_join(od_weights, by = c("from_id", "to_id"))
 
-# Single global raster (rather than 05's per-county loop) is sufficient for
-# a robustness comparison and avoids re-deriving that per-county mosaicking
-# machinery here.
-rasterize_weighted <- function(itin_sf, resolution) {
+# Per-county rasterization, mirroring 05_read_itineraries.R's process_county()
+# exactly -- a single global rasterize() over every itinerary in the metro
+# area (all counties at once) does not scale (line-in-polygon accumulation
+# over ~1M+ geometries against one huge extent ran for 2+ hours without
+# finishing). Each county's extent and feature count is much smaller, which
+# is why 05 already processes counties one at a time for the unweighted
+# surface. County-level pixel grids don't need to align across counties --
+# diff_sf_w is built from the resulting (x, y) points directly, the same way
+# step 1 above combines df_cit/df_pit across counties.
+rasterize_weighted_county <- function(itin_sf, resolution) {
   itin_3857 <- st_transform(itin_sf, 3857)
   v <- vect(itin_3857)
   r <- rast(ext(v), resolution = resolution, crs = "EPSG:3857")
   rasterize(v, r, field = "weight", fun = "sum", background = NA)
 }
 
-r_car_w <- rasterize_weighted(car_itineraries_w, cell_size)
-r_pt_w  <- rasterize_weighted(pt_itineraries_w, cell_size)
+rasterize_weighted_all_counties <- function(itin_sf, resolution) {
+  counties <- unique(itin_sf$county)
+  map_dfr(counties, function(cty) {
+    sub <- itin_sf %>% filter(county == cty)
+    if (nrow(sub) == 0) return(NULL)
+    cat("  rasterizing county:", cty, "(", nrow(sub), "rows )\n")
+    r <- rasterize_weighted_county(sub, resolution)
+    as.data.frame(r, xy = TRUE) %>% rename(weight = 3)
+  })
+}
 
-df_cit_w <- as.data.frame(r_car_w, xy = TRUE) %>% rename(weight = 3)
-df_pit_w <- as.data.frame(r_pt_w,  xy = TRUE) %>% rename(weight = 3)
+cat("Rasterizing weighted car itineraries by county...\n")
+df_cit_w <- rasterize_weighted_all_counties(car_itineraries_w, cell_size)
+cat("Rasterizing weighted PT itineraries by county...\n")
+df_pit_w <- rasterize_weighted_all_counties(pt_itineraries_w, cell_size)
 
 diff_df_w <- full_join(
   df_cit_w %>% mutate(log_freq = log1p(weight)) %>% select(x, y, log_freq),
