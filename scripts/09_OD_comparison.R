@@ -1,8 +1,10 @@
 # =============================================================================
-# 10_OD_comparison.R
+# 09_OD_comparison.R
 # OD travel time comparison: PT vs car
-# Requires: pt_itineraries.rds, car_itineraries.rds (from 05_read_itineraries.R),
-#           poz.gpkg, pop_grid.gpkg, Data/gtfs/*.zip
+# REQUIRES TO RUN: pt_itineraries.rds, car_itineraries.rds (written by
+#   05_read_itineraries.R — run that script first if either is missing),
+#   poz.gpkg, and od_pair_utils.R (sourced automatically below, not run
+#   directly)
 # Produces: Fig_PT_vs_car_travels.png
 #           Fig_PT_vs_car_travels_HEX.png
 #           Fig_PT_vs_car_travels_by_origin.png
@@ -12,20 +14,16 @@ library(sf)
 library(tidyverse)
 library(terra)
 library(tidyr)
-library(spdep)
-library(tidytransit)
 library(maptiles)
 library(tidyterra)
 library(scales)
 
 # ── 0. Paths — edit here only ─────────────────────────────────────────────────
 setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
-source("C:/Users/wozni/OneDrive/Documents/GitHub/MobilityPatterns/scripts/lisa_priority_utils.R")
+source("C:/Users/wozni/OneDrive/Documents/GitHub/MobilityPatterns/scripts/od_pair_utils.R")
 dir.create("../Figures", showWarnings = FALSE)
 
-GTFS_DIR  <- "gtfs"
 POZ_FILE  <- "poz.gpkg"
-POP_FILE  <- "pop_grid.gpkg"
 
 # =============================================================================
 # 1. Load itineraries produced by 05_read_itineraries.R
@@ -37,42 +35,9 @@ cat(sprintf("PT rows : %d\nCar rows: %d\n",
             nrow(pt_itineraries), nrow(car_itineraries)))
 
 # =============================================================================
-# 2. Build OD comparison table
+# 2. Build OD comparison table (shared with 06/07/10 -- see od_pair_utils.R)
 # =============================================================================
-pt_od <- pt_itineraries |>
-  st_drop_geometry() |>
-  group_by(from_id, to_id, from_lat, from_lon) |>
-  summarise(
-    pt_duration_min = min(total_duration),
-    pt_distance_m   = min(total_distance),
-    n_transfers     = max(segment) - 1,
-    .groups = "drop"
-  )
-
-car_od <- car_itineraries |>
-  st_drop_geometry() |>
-  group_by(from_id, to_id, from_lat, from_lon) |>
-  summarise(
-    car_duration_min = min(total_duration),
-    car_distance_m   = min(total_distance),
-    .groups = "drop"
-  )
-
-od_comparison <- inner_join(pt_od, car_od,
-                            by = c("from_id", "to_id", "from_lat", "from_lon")) |>
-  mutate(
-    tt_ratio = pt_duration_min / car_duration_min,
-    tt_diff  = pt_duration_min - car_duration_min,
-    competitive = case_when(
-      tt_ratio <= 1.0 ~ "PT faster",
-      tt_ratio <= 1.5 ~ "Comparable (< 1.5x)",
-      tt_ratio <= 2.0 ~ "PT slower (1.5–2x)",
-      TRUE            ~ "PT much slower (> 2x)"
-    ) |> factor(levels = c(
-      "PT faster", "Comparable (< 1.5x)",
-      "PT slower (1.5–2x)", "PT much slower (> 2x)"
-    ))
-  )
+od_comparison <- build_od_comparison(pt_itineraries, car_itineraries)
 
 od_sf_3857 <- od_comparison |>
   st_as_sf(coords = c("from_lon", "from_lat"), crs = 4326) |>
@@ -83,119 +48,10 @@ cat("Lon range:", range(od_comparison$from_lon), "\n")
 cat("Lat range:", range(od_comparison$from_lat), "\n")
 
 # =============================================================================
-# 3. Rebuild car_zones (High-High LISA clusters) from scratch
-#    — uses the shared helpers in lisa_priority_utils.R (also used by
-#      09_analyse_itineraries.R) so the two scripts share one implementation
-#      of the LISA/accessibility/priority classification logic.
+# 3. Shared basemap
 # =============================================================================
-
-# 3a. Log-frequency difference surface
-df_cit <- car_itineraries |>
-  st_drop_geometry() |>
-  group_by(from_lon, from_lat) |>
-  summarise(freq = n(), .groups = "drop") |>
-  rename(x = from_lon, y = from_lat)
-
-df_pit <- pt_itineraries |>
-  st_drop_geometry() |>
-  group_by(from_lon, from_lat) |>
-  summarise(freq = n(), .groups = "drop") |>
-  rename(x = from_lon, y = from_lat)
-
-diff_df <- full_join(
-  df_cit |> mutate(log_freq = log1p(freq)) |> select(x, y, log_freq),
-  df_pit |> mutate(log_freq = log1p(freq)) |> select(x, y, log_freq),
-  by = c("x", "y"), suffix = c("_car", "_pt")
-) |>
-  mutate(
-    across(starts_with("log_freq"), \(v) replace_na(v, 0)),
-    diff = log_freq_car - log_freq_pt
-  )
-
-diff_sf <- diff_df |>
-  filter(!is.na(diff)) |>
-  st_as_sf(coords = c("x", "y"), crs = 3857) |>
-  st_transform(2180)
-
-# 3b. LISA on the diff surface
-cell_size <- od_comparison |>
-  arrange(from_lon) |> pull(from_lon) |> diff() |>
-  (\(d) d[d > 1e-6])() |> min() * 111320  # approx degrees -> metres
-
-diff_sf <- compute_lisa(diff_sf, cell_size)
-
-# 3c. Population
-pop_grid   <- st_read(POP_FILE, quiet = TRUE)
-pop_grid_r <- st_transform(pop_grid, st_crs(diff_sf))
-diff_sf$working_age_pop <- pop_grid_r$working_age_pop[
-  st_nearest_feature(diff_sf, pop_grid_r)
-]
-
-# 3d. GTFS stops
-stops_poznan <- load_gtfs_stops(GTFS_DIR)
-
-# 3e. Car zones classification
-pop_threshold <- quantile(pop_grid_r$working_age_pop, 0.80, na.rm = TRUE)
-
-car_zones <- diff_sf |>
-  filter(lisa_type == "High-High (car cluster)") |>
-  classify_car_zones(stops_poznan, pop_threshold)
-
-# Remove pixels inside Poznań city boundary
 poz     <- st_read(POZ_FILE, quiet = TRUE)
-poz_r   <- st_transform(poz, st_crs(car_zones))
-outside <- lengths(st_intersects(car_zones, st_union(poz_r))) == 0
-car_zones <- car_zones[outside, ]
-
-cat("\nPriority breakdown:\n")
-print(table(car_zones$priority))
-
-# =============================================================================
-# 4. Join corridor priority to OD pairs
-# =============================================================================
-priority_join <- st_join(
-  od_sf_3857,
-  car_zones |> st_transform(3857) |> select(priority),
-  join = st_nearest_feature
-)
-
-od_sf_3857$corridor_type_val <- priority_join$priority
-od_sf_3857$tt_ratio          <- od_comparison$tt_ratio
-
-cat("\nCorridortype breakdown:\n")
-print(table(od_sf_3857$corridor_type_val, useNA = "always"))
-
-# =============================================================================
-# 5. Rasterize tt_ratio per priority class
-# =============================================================================
-r_template <- rast(
-  ext  = ext(vect(od_sf_3857)),
-  res  = 120,
-  crs  = "EPSG:3857"
-)
-
-make_ratio_raster <- function(corridor_val, label) {
-  pts <- od_sf_3857 |>
-    filter(corridor_type_val == corridor_val, !is.na(tt_ratio))
-  if (nrow(pts) == 0) return(NULL)
-  r <- rasterize(vect(pts), r_template,
-                 field = "tt_ratio", fun = "mean", background = NA)
-  as.data.frame(project(r, "EPSG:4326"), xy = TRUE) |>
-    rename(tt_ratio = mean) |>
-    filter(!is.na(tt_ratio)) |>
-    mutate(corridor_type = label)
-}
-
-priority_levels <- levels(od_sf_3857$corridor_type_val)
-
-df_ratio_facet <- map_dfr(priority_levels, \(lv) make_ratio_raster(lv, lv)) |>
-  mutate(corridor_type = factor(corridor_type, levels = priority_levels))
-
-# =============================================================================
-# 6. Shared basemap
-# =============================================================================
-poz_wgs      <- st_transform(poz, 4326)
-car_zones_wgs <- st_transform(car_zones, 4326)
+poz_wgs <- st_transform(poz, 4326)
 
 bbox_map <- od_sf_3857 |>
   st_transform(4326) |>
@@ -244,7 +100,7 @@ map_limits <- list(
 )
 
 # =============================================================================
-# 7. Fig 1 — PT vs car point map
+# 4. Fig 1 — PT vs car point map
 # =============================================================================
 ggplot() +
   geom_spatraster_rgb(data = osm_map, alpha = 0.85) +
@@ -283,7 +139,7 @@ ggsave("../Figures/Fig_PT_vs_car_travels.png", width = 12, height = 9, dpi = 300
 cat("Saved Fig_PT_vs_car_travels.png\n")
 
 # =============================================================================
-# 8. Fig 2 — Hex bin map of median tt_ratio
+# 5. Fig 2 — Hex bin map of median tt_ratio
 # =============================================================================
 od_coords <- od_map |>
   st_drop_geometry() |>
@@ -334,7 +190,7 @@ ggsave("../Figures/Fig_PT_vs_car_travels_HEX.png", width = 12, height = 9, dpi =
 cat("Saved Fig_PT_vs_car_travels_HEX.png\n")
 
 # =============================================================================
-# 9. Fig 3 — Origin-level mean tt_ratio
+# 6. Fig 3 — Origin-level mean tt_ratio
 # =============================================================================
 od_map |>
   st_drop_geometry() |>

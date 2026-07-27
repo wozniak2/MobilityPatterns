@@ -1,14 +1,19 @@
 # =============================================================================
-# 11_regression_analysis.R
+# 10_regression_analysis.R
 #
 # Builds a per-OD-pair regression dataset (PT efficiency, network topology,
 # stop accessibility, population exposure) from the outputs of steps 1-5,
 # and runs exploratory correlation/VIF/OLS diagnostics on the PT/car travel
 # time ratio.
 #
-# INPUT  : pt_itineraries.rds, car_itineraries.rds (from 05_read_itineraries.R)
-#          pop_grid.gpkg (from 02_distribute_population.R)
-#          gtfs/*.zip
+# REQUIRES TO RUN:
+#   - pt_itineraries.rds, car_itineraries.rds (written by
+#     05_read_itineraries.R — run that script first if either is missing)
+#   - pop_grid.gpkg (from 02_distribute_population.R)
+#   - workplace_grid.gpkg (from 01_calculate_workplaces.R)
+#   - gtfs/*.zip
+#   - od_pair_utils.R, lisa_priority_utils.R — both sourced automatically
+#     below (not run directly)
 # OUTPUT : regression_data.csv
 # =============================================================================
 
@@ -20,6 +25,7 @@ library(car)
 
 setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 source("C:/Users/wozni/OneDrive/Documents/GitHub/MobilityPatterns/scripts/lisa_priority_utils.R")
+source("C:/Users/wozni/OneDrive/Documents/GitHub/MobilityPatterns/scripts/od_pair_utils.R")
 
 # ── Load itineraries produced by 05_read_itineraries.R ───────────────────────
 pt_itineraries  <- readRDS("pt_itineraries.rds")
@@ -28,43 +34,8 @@ car_itineraries <- readRDS("car_itineraries.rds")
 cat(sprintf("PT rows : %d\nCar rows: %d\n",
             nrow(pt_itineraries), nrow(car_itineraries)))
 
-# ── 1. Base OD summary ────────────────────────────────────────────────────────
-pt_od <- pt_itineraries %>%
-  st_drop_geometry() %>%
-  group_by(from_id, to_id, from_lat, from_lon, to_lat, to_lon, county) %>%
-  summarise(
-    pt_duration_min  = min(total_duration),
-    pt_distance_m    = min(total_distance),
-    n_transfers      = max(segment) - 1,
-    .groups = "drop"
-  )
-
-car_od <- car_itineraries %>%
-  st_drop_geometry() %>%
-  group_by(from_id, to_id, from_lat, from_lon, to_lat, to_lon) %>%
-  summarise(
-    car_duration_min = min(total_duration),
-    car_distance_m   = min(total_distance),
-    .groups = "drop"
-  )
-
-od_comparison <- inner_join(
-  pt_od, car_od,
-  by = c("from_id", "to_id", "from_lat", "from_lon", "to_lat", "to_lon")
-) %>%
-  mutate(
-    tt_ratio = pt_duration_min / car_duration_min,
-    tt_diff  = pt_duration_min - car_duration_min,
-    competitive = case_when(
-      tt_ratio <= 1.0 ~ "PT faster",
-      tt_ratio <= 1.5 ~ "Comparable (< 1.5x)",
-      tt_ratio <= 2.0 ~ "PT slower (1.5–2x)",
-      TRUE            ~ "PT much slower (> 2x)"
-    ) %>% factor(levels = c(
-      "PT faster", "Comparable (< 1.5x)",
-      "PT slower (1.5–2x)", "PT much slower (> 2x)"
-    ))
-  )
+# ── 1. Base OD summary (shared with 06/07/09 -- see od_pair_utils.R) ─────────
+od_comparison <- build_od_comparison(pt_itineraries, car_itineraries)
 
 # ── 2. Network topology variables ─────────────────────────────────────────────
 
@@ -184,7 +155,7 @@ od_comparison <- od_comparison %>%
 
 # ── 8. Origin & destination population density, destination workplaces ──────
 # dest_workplaces (unlike dest_working_age_pop) is carried through purely as
-# an aggregation weight for 13_gwr_sdm_comparison.R -- it is not itself a
+# an aggregation weight for 12_gwr_sdm_comparison.R -- it is not itself a
 # model predictor there, since destinations are already selected on having
 # >=150 workplaces (04_r5r_route_batch.R cutoff), so its variation mostly
 # reflects that cutoff rather than an independent effect worth modelling.
@@ -214,7 +185,7 @@ od_comparison <- od_comparison %>%
 regression_data <- od_comparison %>%
   select(
     # Identifiers (origin coordinates kept for downstream spatial models,
-    # e.g. 13_gwr_sdm_comparison.R)
+    # e.g. 12_gwr_sdm_comparison.R)
     from_id, to_id, county, from_lon, from_lat,
 
     # Outcome
@@ -289,6 +260,16 @@ corrplot(cor_vars, method = "color", type = "upper",
 # car_directness (distance-only route-circuity measure) because car_speed_kmh
 # is derived from car_duration_min, the denominator of tt_ratio, and shares
 # that mechanical dependence with the outcome.
+#
+# This VIF check is purely a variable-selection diagnostic on the raw,
+# unaggregated (pseudo-replicated) OD-pair data -- it exists to decide the
+# final predictor set, not to produce a reported model. The formula below
+# (after dropping od_distance_km/pt_directness for collinearity) is re-fit
+# properly -- aggregated to one row per origin zone, with spatial dependence
+# accounted for -- as the actual baseline model in 12_gwr_sdm_comparison.R.
+# Re-fitting the same lm() here on top of the VIF check would just be a
+# throwaway duplicate of that baseline on data known to be the wrong
+# granularity for inference, so it's intentionally not repeated.
 vif_model <- lm(
   tt_ratio ~ n_transfers + walk_share +
     dist_to_stop_m + daily_departures +
@@ -303,19 +284,9 @@ vif_vals <- vif(vif_model)
 print(sort(vif_vals, decreasing = TRUE))
 # Rule of thumb: VIF > 10 indicates problematic multicollinearity
 # VIF > 5 warrants investigation
-
-lm_base <- lm(
-  tt_ratio ~ n_transfers +
-    walk_share +
-    daily_departures +
-    dist_to_stop_m +
-    origin_dist_centre_km +
-    dest_dist_centre_km +
-    origin_working_age_pop +
-    dest_working_age_pop +
-    nearest_stop_is_rail +
-    car_directness,
-  data = regression_data
-)
-
-summary(lm_base)
+#
+# Final predictor set after dropping od_distance_km/pt_directness (see
+# vif_vals above): n_transfers, walk_share, dist_to_stop_m, daily_departures,
+# origin_dist_centre_km, dest_dist_centre_km, origin_working_age_pop,
+# dest_working_age_pop, nearest_stop_is_rail, car_directness -- this is
+# `model_formula` in 12_gwr_sdm_comparison.R.

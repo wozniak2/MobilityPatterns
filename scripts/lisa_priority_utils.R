@@ -5,10 +5,15 @@
 # executable top level (only library() calls and function definitions).
 #
 # Shared helpers for the car-vs-PT LISA clustering, GTFS stop loading, and
-# PT investment-priority classification used by 09_analyse_itineraries.R,
-# 10_OD_comparison.R, and 11_regression_analysis.R. Each of those scripts
-# loads it automatically via source("<path to this file>") near the top —
-# just run them as normal, you never need to source this yourself.
+# PT investment-priority classification used by 08_analyse_itineraries.R and
+# 10_regression_analysis.R. Each of those scripts loads it automatically via
+# source("<path to this file>") near the top — just run them as normal, you
+# never need to source this yourself.
+#
+# (09_OD_comparison.R -- formerly 10_OD_comparison.R -- used to source this
+# too, to rebuild its own LISA/car-zone classification from scratch. That
+# turned out to be dead code -- the result was never used by any of its
+# saved figures -- and was removed 2026-07-27; see that script's header.)
 # =============================================================================
 
 library(dplyr)

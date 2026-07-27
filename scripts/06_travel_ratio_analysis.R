@@ -1,14 +1,29 @@
 # =============================================================================
-# 07_explore_travel_ratios.R
+# 06_travel_ratio_analysis.R
 #
-# Exploratory analysis of PT/car travel-time ratios: population-weighted
+# Attaches population/workplace weights to commuting itineraries, then
+# explores the resulting PT/car travel-time ratios: population-weighted
 # distributions (the "what share of residents experience ratio X" view,
 # rather than treating every OD pair as equally important regardless of who
 # lives there), rail vs. non-rail comparison, and competitive/improvement-
 # needed itineraries by municipality.
 #
-# INPUT  : itineraries_weights.csv (from 06_add_weights_to_itineraries.R)
-# OUTPUT : Figures/Fig_travelratio_density.png
+# Merged 2026-07-27 from two former scripts (06_add_weights_to_itineraries.R
+# + 07_explore_travel_ratios.R): itineraries_weights.csv, written by the
+# first half below, had exactly one consumer -- the second half, in the
+# very next script -- so splitting the weight-attachment and the analysis
+# that immediately reads it back in was pure indirection. Still written to
+# disk (as an audit artifact you can inspect directly), but the analysis
+# below uses the in-memory object rather than re-reading the CSV.
+#
+# REQUIRES TO RUN:
+#   - pt_itineraries.rds, car_itineraries.rds (written by 05_read_itineraries.R
+#     — run that script first if either file is missing)
+#   - pop_grid.gpkg (02_distribute_population.R), workplace_grid.gpkg
+#     (01_calculate_workplaces.R)
+#   - od_pair_utils.R, sourced automatically below (not run directly)
+# OUTPUT : itineraries_weights.csv
+#          Figures/Fig_travelratio_density.png
 #          Figures/Fig_travelratio_density_rail.png
 #          Figures/Fig_travelratio_density_norail.png
 #          Figures/Fig_travelratio_density_rail_vs_norail.png
@@ -18,15 +33,85 @@
 #          improvement_by_municipality.csv
 # =============================================================================
 
+library(data.table)
 library(dplyr)
+library(sf)
 library(ggplot2)
 
 setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
+source("C:/Users/wozni/OneDrive/Documents/GitHub/MobilityPatterns/scripts/od_pair_utils.R")
 dir.create("../Figures", showWarnings = FALSE)
 
-itineraries <- read.csv("itineraries_weights.csv")
+# =============================================================================
+# Part 1 — attach population/workplace weights to itineraries
+# =============================================================================
 
-# has_rail is already computed in 06_add_weights_to_itineraries.R
+#Read itineraries produced by 05_read_itineraries.R
+pt_itineraries  <- readRDS("pt_itineraries.rds")
+car_itineraries <- readRDS("car_itineraries.rds")
+
+#Read & prepare grids
+pop_grid <- st_read("pop_grid.gpkg")
+workplace_grid <- st_read("workplace_grid.gpkg")
+
+workplace_grid <- st_transform(workplace_grid, crs = st_crs(pop_grid))
+
+pop_grid$area <- st_area(pop_grid)
+pop_grid <- setDT(pop_grid)[, .SD[which.max(area)], by=grid_id] #Remove cells with duplicate IDs on municipal boundaries
+pop_grid <- st_as_sf(pop_grid)
+
+# Collapse itineraries to one row per OD pair and compute PT/car ratios
+# (shared with 07/09/10 -- see od_pair_utils.R). Renamed to this script's
+# pre-existing column names (total_duration/total_distance/car_duration/
+# car_distance/time_ratio) so itineraries_weights.csv's schema is unchanged.
+od_combined <- build_od_comparison(pt_itineraries, car_itineraries) |>
+  rename(
+    total_duration = pt_duration_min,
+    total_distance  = pt_distance_m,
+    car_duration    = car_duration_min,
+    car_distance    = car_distance_m,
+    time_ratio      = tt_ratio
+  )
+
+# Origin weight — population
+itineraries_pop <- od_combined |>
+  st_as_sf(coords = c("from_lon", "from_lat"), crs = 4326) |>
+  st_transform(st_crs(pop_grid)) |>
+  st_join(pop_grid |> select(grid_id, working_age_pop), join = st_intersects) |>
+  mutate(
+    from_lon = st_coordinates(geometry)[, 1],  # ← extract before dropping
+    from_lat = st_coordinates(geometry)[, 2]
+  ) |>
+  st_drop_geometry() |>
+  filter(!is.na(working_age_pop))
+
+cat("After pop join:", nrow(itineraries_pop), "rows\n")
+
+# Destination weight — workplaces
+# After the final st_drop_geometry(), add coordinates back explicitly
+itineraries_weights <- itineraries_pop |>
+  st_as_sf(coords = c("to_lon", "to_lat"), crs = 4326) |>
+  st_transform(st_crs(workplace_grid)) |>
+  st_join(workplace_grid |> select(workplaces), join = st_intersects) |>
+  mutate(                              # ← extract coords before dropping
+    to_lon = st_coordinates(geometry)[, 1],
+    to_lat = st_coordinates(geometry)[, 2]
+  ) |>
+  st_drop_geometry() |>
+  filter(!is.na(workplaces))
+
+cat("After workplace join:", nrow(itineraries_weights), "rows\n")
+
+write.csv(itineraries_weights, "itineraries_weights.csv", row.names = FALSE)
+
+# =============================================================================
+# Part 2 — explore the weighted travel-time ratios
+# =============================================================================
+# Uses itineraries_weights directly (in memory) rather than re-reading the
+# CSV just written above.
+itineraries <- itineraries_weights
+
+# has_rail is already computed by build_od_comparison() in Part 1
 # (has_rail = any(mode == "RAIL") per OD pair) -- reused directly here rather
 # than re-deriving it from the `modes` string a second time.
 

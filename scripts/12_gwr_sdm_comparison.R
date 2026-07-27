@@ -1,9 +1,9 @@
 # =============================================================================
-# 13_gwr_sdm_comparison.R
+# 12_gwr_sdm_comparison.R
 #
 # Formally tests which spatial specification best fits the origin-zone
 # PT/car travel-time ratio, motivated by the significant global Moran's I
-# found on the modal gap surface in 09_analyse_itineraries.R (I = 0.182,
+# found on the modal gap surface in 08_analyse_itineraries.R (I = 0.182,
 # z = 595.09, p < 2.2e-16): OLS residuals are not spatially independent, so
 # plain lm() understates uncertainty and cannot capture spatial dependence.
 #
@@ -56,7 +56,7 @@
 # distance-only proxy for car route quality, with no duration term shared
 # with the outcome.
 #
-# INPUT  : regression_data.csv (from 11_regression_analysis.R, must include
+# INPUT  : regression_data.csv (from 10_regression_analysis.R, must include
 #          from_lon/from_lat)
 # OUTPUT : gwr_sdm_comparison.csv       -- AIC/pseudo-R2/Moran's I, all 5 models
 #          spatial_dependence_tests.csv -- LM tests (OLS) + LR tests (SDM vs SAR/SEM)
@@ -93,13 +93,13 @@ if (length(missing_cols) > 0) {
   stop(
     "regression_data.csv is missing column(s): ", paste(missing_cols, collapse = ", "),
     ". This usually means it was written by an older version of ",
-    "11_regression_analysis.R -- re-run that script to regenerate regression_data.csv, ",
+    "10_regression_analysis.R -- re-run that script to regenerate regression_data.csv, ",
     "then re-run this script."
   )
 }
 if (nrow(regression_data) == 0) {
   stop(
-    "regression_data.csv has 0 rows. 11_regression_analysis.R's own filter() ",
+    "regression_data.csv has 0 rows. 10_regression_analysis.R's own filter() ",
     "already dropped everything before this script ever ran -- check that ",
     "script's console output (row counts printed after each join/filter step) ",
     "to see where rows were lost."
@@ -107,7 +107,7 @@ if (nrow(regression_data) == 0) {
 }
 
 # Diagnostic: non-finite counts per formula variable, BEFORE aggregation --
-# every one of these already passed 11_regression_analysis.R's own filter(),
+# every one of these already passed 10_regression_analysis.R's own filter(),
 # so none of them should show non-finite values here.
 formula_vars <- c(all.vars(model_formula), "dest_workplaces")
 cat("\nNon-finite counts per column, in regression_data (pre-aggregation):\n")
@@ -120,7 +120,7 @@ print(sapply(regression_data[formula_vars], function(x) sum(!is.finite(as.numeri
 # dest_workplaces should never legitimately be 0 -- 04_r5r_route_batch.R only
 # routes to destinations with workplaces > 150 -- but a small fraction of
 # rows have it anyway (spurious st_nearest_feature() snaps to an adjacent
-# low/zero-workplace cell in 11_regression_analysis.R's join). If every
+# low/zero-workplace cell in 10_regression_analysis.R's join). If every
 # destination reachable from a given origin happens to hit this, sum(w) = 0
 # and weighted.mean() returns NaN, which then fails the is.finite() filter
 # below and silently drops that origin row -- if it happens broadly enough,
@@ -170,7 +170,7 @@ if (nrow(origin_data) == 0) {
     "likely NA/Inf introduced during the group_by/summarise step above (e.g. ",
     "if a column that's supposed to be origin-constant, like nearest_stop_is_rail ",
     "or dist_to_stop_m, actually varies within an origin group due to a join ",
-    "issue upstream in 11_regression_analysis.R)."
+    "issue upstream in 10_regression_analysis.R)."
   )
 }
 

@@ -290,7 +290,7 @@ work_grid_2180 <- st_transform(work_grid, 2180)
 
 # Per-OD-pair weight, joined by nearest-feature (confirmed to match
 # st_intersects exactly for these grid-derived coordinates -- see
-# 12_validate_od_flows.R diagnostics; nearest-feature used here so a point
+# 11_validate_od_flows.R diagnostics; nearest-feature used here so a point
 # can never fail to match).
 od_weights <- bind_rows(
   car_itineraries %>% st_drop_geometry() %>%

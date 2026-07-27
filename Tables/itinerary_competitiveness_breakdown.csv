@@ -1,0 +1,5 @@
+"competitive","n_od_pairs","share"
+"PT faster",5909,0.00822156055209261
+"Comparable (< 1.5x)",96645,0.13446822128228
+"PT slower (1.5-2x)",206667,0.287548697684773
+"PT much slower (> 2x)",409499,0.569761520480855

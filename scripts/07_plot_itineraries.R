@@ -1,12 +1,15 @@
 # =============================================================================
-# 08_plot_itineraries.R
+# 07_plot_itineraries.R
 #
 # Map-based flow-density visualisation of PT vs. car itineraries, plus
 # route-level descriptive statistics (duration, distance, transfers,
 # PT/car competitiveness breakdown) comparing the two modes per OD pair.
 #
-# INPUT  : itineraries_results.rds, pt_itineraries.rds, car_itineraries.rds
-#          (all from 05_read_itineraries.R)
+# REQUIRES TO RUN:
+#   - itineraries_results.rds, pt_itineraries.rds, car_itineraries.rds
+#     (all written by 05_read_itineraries.R — run that script first if any
+#     is missing)
+#   - od_pair_utils.R, sourced automatically below (not run directly)
 # OUTPUT : Figures/Fig_cars_pt_itineraries.png
 #          Figures/Fig_duration_boxplot_pt_car.png
 #          Figures/Fig_distance_boxplot_pt_car.png
@@ -24,6 +27,7 @@ library(terra)
 library(patchwork)
 
 setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
+source("C:/Users/wozni/OneDrive/Documents/GitHub/MobilityPatterns/scripts/od_pair_utils.R")
 dir.create("../Figures", showWarnings = FALSE)
 
 # Read itineraries produced by 05_read_itineraries.R (rasterized at 120m per county)
@@ -136,27 +140,10 @@ ggsave("../Figures/Fig_cars_pt_itineraries.png", width = 12, height = 9, dpi = 3
 pt_itineraries  <- readRDS("pt_itineraries.rds")
 car_itineraries <- readRDS("car_itineraries.rds")
 
-pt_od <- pt_itineraries %>%
-  st_drop_geometry() %>%
-  group_by(from_id, to_id) %>%
-  summarise(
-    pt_duration_min = min(total_duration),
-    pt_distance_m   = min(total_distance),
-    n_transfers     = max(segment) - 1,
-    .groups = "drop"
-  )
-
-car_od <- car_itineraries %>%
-  st_drop_geometry() %>%
-  group_by(from_id, to_id) %>%
-  summarise(
-    car_duration_min = min(total_duration),
-    car_distance_m   = min(total_distance),
-    .groups = "drop"
-  )
-
-od_summary <- inner_join(pt_od, car_od, by = c("from_id", "to_id")) %>%
-  mutate(tt_ratio = pt_duration_min / car_duration_min)
+# Collapse to one row per OD pair and compute tt_ratio/competitive (shared
+# with 06/09/10 -- see od_pair_utils.R). Also brings has_rail/modes/
+# dist_ratio/tt_diff along, unused here but harmless.
+od_summary <- build_od_comparison(pt_itineraries, car_itineraries)
 
 cat(sprintf("\nOD pairs with both PT and car itineraries: %d\n", nrow(od_summary)))
 
@@ -185,18 +172,9 @@ print(summary_stats, width = Inf)
 
 write.csv(summary_stats, "itinerary_summary_stats.csv", row.names = FALSE)
 
-# ── Competitiveness breakdown (same bands used in scripts 10/11) ─────────────
-od_summary <- od_summary %>%
-  mutate(competitive = case_when(
-    tt_ratio <= 1.0 ~ "PT faster",
-    tt_ratio <= 1.5 ~ "Comparable (< 1.5x)",
-    tt_ratio <= 2.0 ~ "PT slower (1.5-2x)",
-    TRUE            ~ "PT much slower (> 2x)"
-  ) %>% factor(levels = c(
-    "PT faster", "Comparable (< 1.5x)",
-    "PT slower (1.5-2x)", "PT much slower (> 2x)"
-  )))
-
+# ── Competitiveness breakdown ─────────────────────────────────────────────
+# `competitive` already computed by build_od_comparison() above (shared
+# bands, used identically by 06/09/10).
 competitiveness_breakdown <- od_summary %>%
   count(competitive, name = "n_od_pairs") %>%
   mutate(share = n_od_pairs / sum(n_od_pairs))
