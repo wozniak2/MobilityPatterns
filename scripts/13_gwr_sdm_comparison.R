@@ -116,7 +116,22 @@ print(sapply(regression_data[formula_vars], function(x) sum(!is.finite(as.numeri
 # Workplace-weighted mean for destination-varying variables (see header note
 # above); origin-constant variables use a plain mean() since weighting can't
 # change their (already-identical-within-group) value.
-wmean <- function(x, w) stats::weighted.mean(x, w, na.rm = TRUE)
+#
+# dest_workplaces should never legitimately be 0 -- 04_r5r_route_batch.R only
+# routes to destinations with workplaces > 150 -- but a small fraction of
+# rows have it anyway (spurious st_nearest_feature() snaps to an adjacent
+# low/zero-workplace cell in 11_regression_analysis.R's join). If every
+# destination reachable from a given origin happens to hit this, sum(w) = 0
+# and weighted.mean() returns NaN, which then fails the is.finite() filter
+# below and silently drops that origin row -- if it happens broadly enough,
+# origin_data collapses to 0 rows. Fall back to an unweighted mean for that
+# origin rather than propagating NaN.
+wmean <- function(x, w) {
+  if (!is.finite(sum(w, na.rm = TRUE)) || sum(w, na.rm = TRUE) == 0) {
+    return(mean(x, na.rm = TRUE))
+  }
+  stats::weighted.mean(x, w, na.rm = TRUE)
+}
 
 origin_data_raw <- regression_data %>%
   dplyr::group_by(from_id, from_lon, from_lat) %>%
