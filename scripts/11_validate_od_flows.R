@@ -325,7 +325,7 @@ plot_data <- matched %>%
   select(home_municipality, synthetic_share, census_share) %>%
   pivot_longer(cols = c(synthetic_share, census_share),
                names_to = "source", values_to = "share") %>%
-  mutate(source = recode(source,
+  mutate(source = dplyr::recode(source,
                           synthetic_share = synthetic_label,
                           census_share    = "Census"))
 

@@ -110,7 +110,7 @@ pop_grid_r <- st_transform(pop_grid, st_crs(diff_sf))
 
 diff_sf <- diff_sf |>
   st_join(
-    pop_grid_r |> select(working_age_pop),
+    pop_grid_r |> select(grid_id, working_age_pop),
     join = st_intersects
   )
 
@@ -163,6 +163,33 @@ cat(sprintf(
   100 * car_pref_rail_share
 ))
 
+# ── 6c. Residents affected by each investment priority class ─────────────────
+# working_age_pop is per-raster-pixel (inherited from the nearest 200m
+# population grid cell via the st_join in step 5), so simply summing it
+# across pixels of a given priority class would grossly over-count actual
+# residents: many adjacent 120m pixels share the same underlying 200m
+# population cell, and each would re-contribute that cell's full
+# population. grid_id (the population cell's own identifier, now carried
+# through the step-5 join) is used instead to sum residents once per
+# DISTINCT population cell touched by each priority class, not once per
+# pixel. A population cell that touches pixels of more than one priority
+# class (possible near a class boundary) is counted once in each -- a
+# modest, disclosed double-count, but far more defensible than the
+# per-pixel sum.
+residents_by_priority <- car_zones %>%
+  st_drop_geometry() %>%
+  distinct(priority, grid_id, working_age_pop) %>%
+  group_by(priority) %>%
+  summarise(
+    n_population_cells = n(),
+    residents           = sum(working_age_pop, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+cat("\nResidents affected by investment priority class (deduplicated by population grid cell):\n")
+print(residents_by_priority)
+write.csv(residents_by_priority, "residents_by_priority.csv", row.names = FALSE)
+
 # ── 7. Diagnostic heatmap — frequency vs distance ────────────────────────────
 car_zones %>%
   st_drop_geometry() %>%
@@ -203,14 +230,44 @@ osm_bw <- app(osm_tiles, fun = function(x) {
 
 osm_bw <- c(osm_bw, osm_bw, osm_bw)
 
-# Fetch primary, secondary and tertiary roads from OSM
-osmdata::set_overpass_url("https://overpass-api.de/api/interpreter")
-roads_lines <- opq(bbox = st_bbox(car_zones_wgs), timeout = 60) %>%
-  add_osm_feature(key = "highway", value = c("primary", "secondary", "tertiary")) %>%
-  osmdata_sf() %>%
-  .$osm_lines %>%
-  st_transform(4326) %>%
-  select(osm_id, name, highway)
+# Fetch primary, secondary and tertiary roads from OSM. This is a purely
+# decorative context layer for the map below (not used in any analysis),
+# and the public Overpass endpoint returns occasional 504s under load
+# regardless of query size -- rather than let a flaky external call abort
+# the whole script (everything analytically important up to this point,
+# including residents_by_priority.csv, has already been written), retry
+# once against a mirror and fall back to an empty roads layer if both
+# fail. The map still renders, just without the grey road overlay.
+fetch_osm_roads <- function(bbox, overpass_url) {
+  osmdata::set_overpass_url(overpass_url)
+  opq(bbox = bbox, timeout = 90) %>%
+    add_osm_feature(key = "highway", value = c("primary", "secondary", "tertiary")) %>%
+    osmdata_sf() %>%
+    .$osm_lines %>%
+    st_transform(4326) %>%
+    select(osm_id, name, highway)
+}
+
+empty_roads_sf <- st_sf(
+  osm_id = character(0), name = character(0), highway = character(0),
+  geometry = st_sfc(crs = 4326)
+)
+
+roads_lines <- tryCatch(
+  fetch_osm_roads(st_bbox(car_zones_wgs), "https://overpass-api.de/api/interpreter"),
+  error = function(e) {
+    message("Primary Overpass endpoint failed (", conditionMessage(e),
+            "), retrying with mirror...")
+    tryCatch(
+      fetch_osm_roads(st_bbox(car_zones_wgs), "https://overpass.kumi.systems/api/interpreter"),
+      error = function(e2) {
+        message("Overpass mirror also failed (", conditionMessage(e2),
+                ") -- map will render without a roads layer.")
+        empty_roads_sf
+      }
+    )
+  }
+)
 
 ggplot() +
   geom_spatraster_rgb(data = osm_bw, alpha = 0.55) +
