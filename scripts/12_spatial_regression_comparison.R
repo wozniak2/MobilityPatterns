@@ -1,5 +1,5 @@
 # =============================================================================
-# 12_gwr_sdm_comparison.R
+# 12_spatial_regression_comparison.R
 #
 # Formally tests which spatial specification best fits the origin-zone
 # PT/car travel-time ratio, motivated by the significant global Moran's I
@@ -18,17 +18,16 @@
 #      nests SEM under the "common factor" restriction).
 #   3. Likelihood-ratio test SDM against SAR and SEM to confirm the extra
 #      Durbin complexity is actually justified rather than assumed.
-#   4. Compare all four (+ GWR) on AIC, pseudo-R^2, and residual Moran's I.
+#   4. Compare all four (OLS, SAR, SEM, SDM) on AIC, pseudo-R^2, and
+#      residual Moran's I, and report the SDM effect decomposition.
 #
-# GWR is fit too, but for a DIFFERENT question than SAR/SEM/SDM answer: it
-# tests spatial NON-STATIONARITY (do relationships vary by place), not
-# spatial DEPENDENCE (are values correlated with neighbours). A prior run
-# showed GWR's local R^2 is much higher than OLS's, but its residual
-# Moran's I (0.383) was far WORSE than SDM's (0.054) -- high local fit does
-# not mean the dependence problem is solved, because GWR has no lag/error
-# term. GWR is kept here for its local coefficient maps (useful for RQ3 --
-# which zones need which type of intervention), not as a competitor to
-# SAR/SEM/SDM for "which spatial model is correct".
+# NOTE (2026-07-28): a GWR (geographically weighted regression) fit and its
+# two figures were removed from this script -- GWR was never part of what
+# this study actually estimates (only OLS/SAR/SEM/SDM are), and keeping code
+# for a model that isn't reported was more confusing than useful. If GWR's
+# local coefficient maps are ever wanted again for RQ3-style "which zones
+# need which intervention" exploration, `GWmodel::bw.gwr()` +
+# `GWmodel::gwr.basic()` on `model_formula` (below) is where it was.
 #
 # DESIGN CHOICE: regression_data.csv is one row per OD pair, but these
 # models need one observation per spatial location. Rows are aggregated to
@@ -58,22 +57,16 @@
 #
 # INPUT  : regression_data.csv (from 10_regression_analysis.R, must include
 #          from_lon/from_lat)
-# OUTPUT : gwr_sdm_comparison.csv       -- AIC/pseudo-R2/Moran's I, all 5 models
-#          spatial_dependence_tests.csv -- LM tests (OLS) + LR tests (SDM vs SAR/SEM)
-#          sdm_impacts.csv              -- SDM direct/indirect/total effects + p-values
-#          regression_vif.csv           -- VIF on the reported origin-level OLS model
-#          gwr_local_coefficients.csv
-#          Figures/Fig_GWR_local_R2.png
-#          Figures/Fig_GWR_coef_dist_to_stop.png
+# OUTPUT : spatial_regression_comparison.csv -- AIC/pseudo-R2/Moran's I, all 4 models
+#          spatial_dependence_tests.csv      -- LM tests (OLS) + LR tests (SDM vs SAR/SEM)
+#          sdm_impacts.csv                   -- SDM direct/indirect/total effects + p-values
+#          regression_vif.csv                -- VIF on the reported origin-level OLS model
 # =============================================================================
 
 library(dplyr)
 library(sf)
-library(sp)
 library(spdep)
 library(spatialreg)
-library(GWmodel)
-library(ggplot2)
 
 setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 dir.create("../Figures", showWarnings = FALSE)
@@ -160,7 +153,7 @@ cat("\nOrigin zones before finiteness filter:", nrow(origin_data_raw), "\n")
 cat("Non-finite counts per column, AFTER aggregation (origin_data_raw):\n")
 print(sapply(origin_data_raw, function(x) sum(!is.finite(x))))
 
-# Verbs namespaced (dplyr::) below: sp/spdep/spatialreg/GWmodel/ggplot2 are all
+# Verbs namespaced (dplyr::) below: sp/spdep/spatialreg/ggplot2 are all
 # loaded after dplyr, and if any of them also export filter()/group_by()/
 # summarise(), the unqualified call would silently resolve to the wrong
 # function instead of erroring -- exactly the kind of bug that can zero out
@@ -321,38 +314,17 @@ sdm_impacts_df <- data.frame(
 )
 write.csv(sdm_impacts_df, "sdm_impacts.csv", row.names = FALSE)
 
-# ── 9. Geographically Weighted Regression (secondary/exploratory -- see
-#      header note: addresses spatial non-stationarity, not dependence) ─────
-origin_sp <- as(origin_sf, "Spatial")
-
-bw <- bw.gwr(model_formula, data = origin_sp, approach = "AICc",
-             kernel = "bisquare", adaptive = TRUE)
-cat("\nGWR adaptive bandwidth (n neighbours):", bw, "\n")
-
-gwr_model <- gwr.basic(model_formula, data = origin_sp, bw = bw,
-                        kernel = "bisquare", adaptive = TRUE)
-print(gwr_model)
-
-gwr_sf <- st_as_sf(gwr_model$SDF) %>% st_transform(4326)
-
-cat("\nMoran's I on GWR residuals:\n")
-print(moran.test(gwr_model$SDF$residual, lw))
-
-write.csv(st_drop_geometry(gwr_sf), "gwr_local_coefficients.csv", row.names = FALSE)
-
-# ── 10. Model comparison: OLS vs. SAR vs. SEM vs. SDM vs. GWR ────────────────
+# ── 9. Model comparison: OLS vs. SAR vs. SEM vs. SDM ─────────────────────────
 pseudo_r2 <- function(observed, fitted) cor(observed, fitted, use = "complete.obs")^2
 
 comparison <- data.frame(
-  model = c("OLS", "SAR (lag)", "SEM (error)", "SDM (Durbin)", "GWR"),
-  aic = c(AIC(ols_model), AIC(sar_model), AIC(sem_model), AIC(sdm_model),
-          gwr_model$GW.diagnostic$AICc),
+  model = c("OLS", "SAR (lag)", "SEM (error)", "SDM (Durbin)"),
+  aic = c(AIC(ols_model), AIC(sar_model), AIC(sem_model), AIC(sdm_model)),
   pseudo_r2 = c(
     pseudo_r2(origin_data$tt_ratio, fitted(ols_model)),
     pseudo_r2(origin_data$tt_ratio, sar_model$fitted.values),
     pseudo_r2(origin_data$tt_ratio, sem_model$fitted.values),
-    pseudo_r2(origin_data$tt_ratio, sdm_model$fitted.values),
-    pseudo_r2(origin_data$tt_ratio, gwr_model$SDF$yhat)
+    pseudo_r2(origin_data$tt_ratio, sdm_model$fitted.values)
   ),
   # Indexed positionally (not by name): lm.morantest() labels this element
   # "Observed Moran I" while moran.test() labels the same quantity "Moran I
@@ -362,39 +334,13 @@ comparison <- data.frame(
     lm.morantest(ols_model, lw)$estimate[[1]],
     moran.test(residuals(sar_model), lw)$estimate[[1]],
     moran.test(residuals(sem_model), lw)$estimate[[1]],
-    moran.test(residuals(sdm_model), lw)$estimate[[1]],
-    moran.test(gwr_model$SDF$residual, lw)$estimate[[1]]
+    moran.test(residuals(sdm_model), lw)$estimate[[1]]
   )
 )
 
-cat("\n--- Model comparison: OLS vs. SAR vs. SEM vs. SDM vs. GWR ---\n")
+cat("\n--- Model comparison: OLS vs. SAR vs. SEM vs. SDM ---\n")
 print(comparison)
-write.csv(comparison, "gwr_sdm_comparison.csv", row.names = FALSE)
+write.csv(comparison, "spatial_regression_comparison.csv", row.names = FALSE)
 
-# ── 11. Maps: local model fit and one policy-relevant local coefficient ──────
-ggplot(gwr_sf) +
-  geom_sf(aes(colour = Local_R2), size = 1.5) +
-  scale_colour_viridis_c(option = "plasma") +
-  labs(
-    title    = "GWR local R-squared",
-    subtitle = "Spatial variation in model fit across origin zones"
-  ) +
-  theme_minimal()
-
-ggsave("../Figures/Fig_GWR_local_R2.png", width = 8, height = 6, dpi = 300)
-
-ggplot(gwr_sf) +
-  geom_sf(aes(colour = dist_to_stop_m), size = 1.5) +
-  scale_colour_gradient2(low = "#2980b9", mid = "grey90", high = "#c0392b", midpoint = 0,
-                          name = "Local coefficient") +
-  labs(
-    title    = "GWR local coefficient: distance to nearest stop",
-    subtitle = "Positive = longer stop distance locally associated with a worse PT/car ratio"
-  ) +
-  theme_minimal()
-
-ggsave("../Figures/Fig_GWR_coef_dist_to_stop.png", width = 8, height = 6, dpi = 300)
-
-cat("\nSaved gwr_sdm_comparison.csv, spatial_dependence_tests.csv, sdm_impacts.csv,\n",
-    "gwr_local_coefficients.csv, Figures/Fig_GWR_local_R2.png,\n",
-    "Figures/Fig_GWR_coef_dist_to_stop.png\n")
+cat("\nSaved spatial_regression_comparison.csv, spatial_dependence_tests.csv,\n",
+    "sdm_impacts.csv, regression_vif.csv\n")

@@ -33,10 +33,10 @@ The core workflow combines:
   workplace gravity-style proxy for synthetic OD volume to the empirical
   LAU-to-LAU commuting matrix (`11_validate_od_flows.R`).
 - **Spatial regression comparison** (OLS baseline, Lagrange Multiplier
-  tests, SAR, SEM, Spatial Durbin Model, and GWR) on origin-zone PT/car
+  tests, SAR, SEM, and Spatial Durbin Model) on origin-zone PT/car
   travel-time ratios, motivated by the significant global Moran's I found
   on the modal gap surface — plain OLS residuals are not spatially
-  independent (`12_gwr_sdm_comparison.R`).
+  independent (`12_spatial_regression_comparison.R`).
 
 The output of this pipeline supports a manuscript analyzing modal gaps and
 PT accessibility deficits in the Poznań metropolitan area, intended for
@@ -69,8 +69,8 @@ Origin–destination pairs classified by PT/car travel time ratio (`09_OD_compar
     `11_validate_od_flows.R`
   - `corrplot`, `car` — correlation matrix and VIF diagnostics in
     `10_regression_analysis.R`
-  - `sp`, `spatialreg`, `GWmodel` — Spatial Durbin Model and GWR in
-    `12_gwr_sdm_comparison.R` (in addition to `spdep`, already listed above)
+  - `spatialreg` — SAR/SEM/Spatial Durbin Model in
+    `12_spatial_regression_comparison.R` (in addition to `spdep`, already listed above)
 
 > **Note:** fill in exact package versions (e.g. via `renv::snapshot()` or
 > a `sessionInfo()` dump) once the pipeline is stable, so results are
@@ -122,7 +122,7 @@ scripts/
 ├── 09_OD_comparison.R
 ├── 10_regression_analysis.R
 ├── 11_validate_od_flows.R
-├── 12_gwr_sdm_comparison.R
+├── 12_spatial_regression_comparison.R
 ├── lisa_priority_utils.R   <- shared LISA/priority-typology helpers, sourced by 08 and 10
 └── od_pair_utils.R         <- shared OD-pair-comparison helper, sourced by 06, 07, 09 and 10
 Data/            <- input and intermediate data (see "Data availability")
@@ -300,7 +300,7 @@ has run at least once.
     *not* fit and report an OLS model itself — the predictor set selected
     here (via `vif_vals`) is fit properly, aggregated to one row per
     origin zone, as the actual reported baseline in
-    `12_gwr_sdm_comparison.R`; an earlier version of this script re-fit
+    `12_spatial_regression_comparison.R`; an earlier version of this script re-fit
     the same formula a second time on the raw, pseudo-replicated OD-pair
     data purely as a throwaway sanity check, which duplicated step 12's
     model for no downstream benefit and was removed.
@@ -333,7 +333,7 @@ has run at least once.
     `od_validation_beta_sensitivity.csv`,
     `Figures/Fig_od_validation_scatter.png`,
     `Figures/Fig_od_validation_share_by_municipality.png`*
-12. **`12_gwr_sdm_comparison.R`** — Formally tests which spatial
+12. **`12_spatial_regression_comparison.R`** — Formally tests which spatial
     specification best fits the origin-zone PT/car travel-time ratio,
     following standard spatial-econometrics practice: fits OLS, runs
     Lagrange Multiplier tests (`spdep::lm.LMtests()`, LMerr/LMlag +
@@ -343,15 +343,10 @@ has run at least once.
     (Durbin: lag + spatially-lagged predictors) — and likelihood-ratio
     tests SDM against SAR and SEM (`spatialreg::LR.sarlm()`) to confirm
     the extra Durbin complexity is actually justified rather than
-    assumed. Also fits GWR (`GWmodel::gwr.basic()`), but positions it as
-    a secondary/exploratory tool answering a different question —
-    spatial *non-stationarity* (do relationships vary by place) rather
-    than spatial *dependence* (are values correlated with neighbors); a
-    prior run showed GWR's much higher local R² doesn't reduce residual
-    Moran's I anywhere near as much as SDM does, since GWR has no
-    lag/error term. GWR's local coefficient maps remain useful for RQ3
-    (which zones need which intervention type), just not as a competing
-    answer to "which spatial model is correct."
+    assumed. (A GWR fit and its two figures were removed 2026-07-28 — GWR
+    was never part of what the study actually estimates, only OLS/SAR/SEM/SDM
+    are; if it's ever wanted again, `GWmodel::bw.gwr()`/`gwr.basic()` on this
+    script's `model_formula` is where it was.)
     Aggregates `regression_data.csv` from OD-pair level to one row per
     origin grid cell since these models need one observation per location.
     Origin-constant predictors (e.g. `dist_to_stop_m`, `origin_dist_centre_km`)
@@ -363,19 +358,18 @@ has run at least once.
     k-nearest-neighbour (k=8) spatial weights matrix (not the 120m
     distance-band weights used for LISA, since origin zones aren't on a
     regular raster after aggregation). Re-checks multicollinearity via
-    VIF on this origin-level OLS model itself (all VIF < 3.4), a
-    stronger diagnostic than step 10's own VIF check, which runs on the
-    raw, pre-aggregation OD-pair data purely to select the predictor
-    set. Reports AIC, pseudo-R², and residual Moran's I for all five
-    models side by side, plus the SDM's direct/indirect/total effect
-    decomposition (spillovers — does improving PT at one origin
+    VIF on this origin-level OLS model itself (all VIF < 1.9 on the
+    current 9-predictor set — `dest_working_age_pop` was dropped
+    2026-07-28), a stronger diagnostic than step 10's own VIF check,
+    which runs on the raw, pre-aggregation OD-pair data purely to select
+    the predictor set. Reports AIC, pseudo-R², and residual Moran's I for
+    all four models side by side, plus the SDM's direct/indirect/total
+    effect decomposition (spillovers — does improving PT at one origin
     measurably help its neighbors). Uses the same reduced predictor set
     selected via step 10's VIF check (excludes `pt_duration_min`, uses
     `car_directness`).
-    *Output: `gwr_sdm_comparison.csv`, `spatial_dependence_tests.csv`,
-    `sdm_impacts.csv`, `regression_vif.csv`, `gwr_local_coefficients.csv`,
-    `Figures/Fig_GWR_local_R2.png`,
-    `Figures/Fig_GWR_coef_dist_to_stop.png`*
+    *Output: `spatial_regression_comparison.csv`, `spatial_dependence_tests.csv`,
+    `sdm_impacts.csv`, `regression_vif.csv`*
 
 Steps 06–12 are exploratory/analytical and can be run independently once
 step 05 has produced its output (for 06, 07, 08, 09, 10, 11), or step 10

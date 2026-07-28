@@ -155,7 +155,7 @@ od_comparison <- od_comparison %>%
 
 # ── 8. Origin & destination population density, destination workplaces ──────
 # dest_workplaces (unlike dest_working_age_pop) is carried through purely as
-# an aggregation weight for 12_gwr_sdm_comparison.R -- it is not itself a
+# an aggregation weight for 12_spatial_regression_comparison.R -- it is not itself a
 # model predictor there, since destinations are already selected on having
 # >=150 workplaces (04_r5r_route_batch.R cutoff), so its variation mostly
 # reflects that cutoff rather than an independent effect worth modelling.
@@ -185,7 +185,7 @@ od_comparison <- od_comparison %>%
 regression_data <- od_comparison %>%
   select(
     # Identifiers (origin coordinates kept for downstream spatial models,
-    # e.g. 12_gwr_sdm_comparison.R)
+    # e.g. 12_spatial_regression_comparison.R)
     from_id, to_id, county, from_lon, from_lat,
 
     # Outcome
@@ -266,7 +266,7 @@ corrplot(cor_vars, method = "color", type = "upper",
 # final predictor set, not to produce a reported model. The formula below
 # (after dropping od_distance_km/pt_directness for collinearity) is re-fit
 # properly -- aggregated to one row per origin zone, with spatial dependence
-# accounted for -- as the actual baseline model in 12_gwr_sdm_comparison.R.
+# accounted for -- as the actual baseline model in 12_spatial_regression_comparison.R.
 # Re-fitting the same lm() here on top of the VIF check would just be a
 # throwaway duplicate of that baseline on data known to be the wrong
 # granularity for inference, so it's intentionally not repeated.
@@ -289,6 +289,6 @@ print(sort(vif_vals, decreasing = TRUE))
 # vif_vals above): n_transfers, walk_share, dist_to_stop_m, daily_departures,
 # origin_dist_centre_km, dest_dist_centre_km, origin_working_age_pop,
 # nearest_stop_is_rail, car_directness -- this is `model_formula` in
-# 12_gwr_sdm_comparison.R. dest_working_age_pop was screened here (VIF
+# 12_spatial_regression_comparison.R. dest_working_age_pop was screened here (VIF
 # below) but is deliberately excluded from the final model as of the
 # 2026-07-28 manuscript revision.
