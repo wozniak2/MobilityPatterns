@@ -37,7 +37,7 @@
 # nearest_stop_is_rail, origin_working_age_pop) average to their exact
 # original value regardless of weighting, so a plain mean() is used for
 # those. Predictors that vary by destination (tt_ratio itself,
-# dest_dist_centre_km, dest_working_age_pop, car_directness, walk_share,
+# dest_dist_centre_km, car_directness, walk_share,
 # n_transfers) are instead aggregated as a workplace-weighted mean
 # (weighted.mean(..., w = dest_workplaces)): an origin reachable to one
 # destination with 5,000 jobs and one with 5 jobs should have its outcome
@@ -79,9 +79,14 @@ setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
 dir.create("../Figures", showWarnings = FALSE)
 set.seed(42)
 
+# dest_working_age_pop removed 2026-07-28 (manuscript revision): it was
+# previously in this formula and was, in the SDM effect decomposition, one
+# of only two predictors whose total effect survived decomposition. Removed
+# per explicit instruction, not a data-driven decision (e.g. not for
+# collinearity -- its VIF was 2.82, well under the concern threshold).
 model_formula <- tt_ratio ~ n_transfers + walk_share + daily_departures +
   dist_to_stop_m + origin_dist_centre_km + dest_dist_centre_km +
-  origin_working_age_pop + dest_working_age_pop + nearest_stop_is_rail +
+  origin_working_age_pop + nearest_stop_is_rail +
   car_directness
 
 # ── 1. Load regression data & aggregate to one row per origin zone ───────────
@@ -145,7 +150,6 @@ origin_data_raw <- regression_data %>%
     origin_dist_centre_km     = mean(origin_dist_centre_km, na.rm = TRUE),
     dest_dist_centre_km       = wmean(dest_dist_centre_km, dest_workplaces),
     origin_working_age_pop    = mean(origin_working_age_pop, na.rm = TRUE),
-    dest_working_age_pop      = wmean(dest_working_age_pop, dest_workplaces),
     nearest_stop_is_rail      = mean(nearest_stop_is_rail, na.rm = TRUE),
     car_directness             = wmean(car_directness, dest_workplaces),
     n_destinations             = dplyr::n(),
@@ -300,8 +304,14 @@ print(sdm_impacts_summary)  # full output incl. z-stats/p-values, console only
 # empty file with no warning or error. p-values (from the R=500 simulation)
 # are taken from summary(sdm_impacts, zstats=TRUE)$pzmat, whose three columns
 # are, in order, Direct/Indirect/Total (matching the console print above).
+# SECOND BUG FIX (found 2026-07-28, same day, after dropping a predictor):
+# names(sdm_impacts$res$direct) is not reliably populated (returned character(0)
+# once the predictor count changed from 10 to 9), even though the point
+# estimates themselves are fine -- use rownames(sdm_impacts_summary$pzmat)
+# instead, which is always populated (it's what the console print above
+# relies on) and is guaranteed to be in the same variable order as $res.
 sdm_impacts_df <- data.frame(
-  variable   = names(sdm_impacts$res$direct),
+  variable   = rownames(sdm_impacts_summary$pzmat),
   direct     = sdm_impacts$res$direct,
   indirect   = sdm_impacts$res$indirect,
   total      = sdm_impacts$res$total,
@@ -344,12 +354,16 @@ comparison <- data.frame(
     pseudo_r2(origin_data$tt_ratio, sdm_model$fitted.values),
     pseudo_r2(origin_data$tt_ratio, gwr_model$SDF$yhat)
   ),
+  # Indexed positionally (not by name): lm.morantest() labels this element
+  # "Observed Moran I" while moran.test() labels the same quantity "Moran I
+  # statistic" -- a naming inconsistency between the two spdep functions,
+  # not a difference in what's being reported. Both put it first in $estimate.
   moran_i_residuals = c(
-    lm.morantest(ols_model, lw)$estimate[["Moran I statistic"]],
-    moran.test(residuals(sar_model), lw)$estimate[["Moran I statistic"]],
-    moran.test(residuals(sem_model), lw)$estimate[["Moran I statistic"]],
-    moran.test(residuals(sdm_model), lw)$estimate[["Moran I statistic"]],
-    moran.test(gwr_model$SDF$residual, lw)$estimate[["Moran I statistic"]]
+    lm.morantest(ols_model, lw)$estimate[[1]],
+    moran.test(residuals(sar_model), lw)$estimate[[1]],
+    moran.test(residuals(sem_model), lw)$estimate[[1]],
+    moran.test(residuals(sdm_model), lw)$estimate[[1]],
+    moran.test(gwr_model$SDF$residual, lw)$estimate[[1]]
   )
 )
 

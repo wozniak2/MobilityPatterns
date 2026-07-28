@@ -301,12 +301,13 @@ ggplot(matched, aes(x = commuters, y = synthetic_volume)) +
   scale_y_log10() +
   labs(
     x = "Census commuters (log scale)",
-    y = sprintf("Synthetic volume proxy: pop x workplaces / time^%s (log scale)", best_beta)
+    y = "Synthetic volume proxy (log scale)"
   ) +
   theme_minimal(base_size = 17) +
   theme(
     axis.title    = element_text(size = 19),
-    axis.text     = element_text(size = 18)
+    axis.text     = element_text(size = 18),
+    plot.margin   = margin(t = 10, r = 15, b = 10, l = 10)
   )
 
 ggsave("../Figures/Fig_od_validation_scatter.png", width = 8, height = 6, dpi = 300)
@@ -316,7 +317,7 @@ cat("Saved Figures/Fig_od_validation_scatter.png\n")
 # synthetic_volume and commuters are on different scales (a distance-decayed
 # gravity proxy vs. actual people), so only their SHARE of the total
 # neighborhood -> core flow is directly comparable across the two sources.
-synthetic_label <- sprintf("Synthetic (pop x workplaces / time^%s)", best_beta)
+synthetic_label <- "Synthetic proxy"
 
 plot_data <- matched %>%
   mutate(

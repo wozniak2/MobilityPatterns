@@ -288,5 +288,7 @@ print(sort(vif_vals, decreasing = TRUE))
 # Final predictor set after dropping od_distance_km/pt_directness (see
 # vif_vals above): n_transfers, walk_share, dist_to_stop_m, daily_departures,
 # origin_dist_centre_km, dest_dist_centre_km, origin_working_age_pop,
-# dest_working_age_pop, nearest_stop_is_rail, car_directness -- this is
-# `model_formula` in 12_gwr_sdm_comparison.R.
+# nearest_stop_is_rail, car_directness -- this is `model_formula` in
+# 12_gwr_sdm_comparison.R. dest_working_age_pop was screened here (VIF
+# below) but is deliberately excluded from the final model as of the
+# 2026-07-28 manuscript revision.
