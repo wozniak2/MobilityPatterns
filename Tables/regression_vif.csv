@@ -1,0 +1,11 @@
+variable,vif
+dest_dist_centre_km,3.312105
+dest_working_age_pop,2.816475
+origin_dist_centre_km,1.875918
+n_transfers,1.546234
+nearest_stop_is_rail,1.404606
+car_directness,1.399918
+walk_share,1.225311
+dist_to_stop_m,1.157523
+daily_departures,1.126267
+origin_working_age_pop,1.094851

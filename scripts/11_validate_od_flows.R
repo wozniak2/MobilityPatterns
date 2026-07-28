@@ -300,13 +300,14 @@ ggplot(matched, aes(x = commuters, y = synthetic_volume)) +
   scale_x_log10() +
   scale_y_log10() +
   labs(
-    title = "Neighborhood -> core commuting: synthetic vs. census",
-    subtitle = sprintf("Spearman rho = %.2f, beta = %s, n = %d municipalities -> %s",
-                        od_cor$estimate, best_beta, nrow(matched), core_name),
     x = "Census commuters (log scale)",
     y = sprintf("Synthetic volume proxy: pop x workplaces / time^%s (log scale)", best_beta)
   ) +
-  theme_minimal()
+  theme_minimal(base_size = 17) +
+  theme(
+    axis.title    = element_text(size = 19),
+    axis.text     = element_text(size = 18)
+  )
 
 ggsave("../Figures/Fig_od_validation_scatter.png", width = 8, height = 6, dpi = 300)
 cat("Saved Figures/Fig_od_validation_scatter.png\n")
@@ -334,11 +335,14 @@ ggplot(plot_data, aes(x = reorder(home_municipality, share), y = share, fill = s
   coord_flip() +
   scale_y_continuous(labels = percent) +
   labs(
-    title = paste("Neighborhood -> core commuting share:", core_name),
-    subtitle = "Share of total neighborhood-to-core flow, by origin municipality",
     x = NULL, y = NULL, fill = NULL
   ) +
-  theme_minimal()
+  theme_minimal(base_size = 16) +
+  theme(
+    axis.text     = element_text(size = 15),
+    legend.text   = element_text(size = 16),
+    legend.position = "top"
+  )
 
-ggsave("../Figures/Fig_od_validation_share_by_municipality.png", width = 8, height = 6, dpi = 300)
+ggsave("../Figures/Fig_od_validation_share_by_municipality.png", width = 8, height = 8.5, dpi = 300)
 cat("Saved Figures/Fig_od_validation_share_by_municipality.png\n")

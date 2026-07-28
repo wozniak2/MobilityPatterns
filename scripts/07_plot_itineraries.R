@@ -77,22 +77,21 @@ pt_iti <- ggplot(df_plot_pt) +
   coord_equal() +
   geom_sf(data = poz_3857, fill = NA, colour = "red",
           linewidth = 0.4, inherit.aes = FALSE) +
-  theme_dark(base_size = 14) +
-  ggtitle("Public transport") +
-  
+  theme_dark(base_size = 20) +
+
   theme(
     panel.background = element_rect(fill = "#1a1a1a"),
     plot.background  = element_rect(fill = "#1a1a1a"),
     legend.background = element_rect(fill = "#1a1a1a"),
     legend.key = element_rect(fill = "#1a1a1a"),
-    
+
     text = element_text(color = "white"),
     axis.text = element_blank(),
     axis.title = element_blank(),
-    
-    legend.title = element_text(size = 14, color = "white"),
-    legend.text  = element_text(size = 14, color = "white"),
-    
+
+    legend.title = element_text(size = 20, color = "white"),
+    legend.text  = element_text(size = 19, color = "white"),
+
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank()
   )
@@ -104,22 +103,21 @@ car_iti <- ggplot(df_plot_car) +
   coord_equal() +
   geom_sf(data = poz_3857, fill = NA, colour = "red",
           linewidth = 0.4, inherit.aes = FALSE) +
-  theme_dark(base_size = 14) +
-  ggtitle("Cars") +
-  
+  theme_dark(base_size = 20) +
+
   theme(
     panel.background = element_rect(fill = "#1a1a1a"),
     plot.background  = element_rect(fill = "#1a1a1a"),
     legend.background = element_rect(fill = "#1a1a1a"),
     legend.key = element_rect(fill = "#1a1a1a"),
-    
+
     text = element_text(color = "white"),
     axis.text = element_blank(),
     axis.title = element_blank(),
-    
-    legend.title = element_text(size = 14, color = "white"),
-    legend.text  = element_text(size = 14, color = "white"),
-    
+
+    legend.title = element_text(size = 20, color = "white"),
+    legend.text  = element_text(size = 19, color = "white"),
+
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank()
   )
@@ -195,9 +193,13 @@ duration_long <- od_summary %>%
 ggplot(duration_long, aes(x = mode, y = duration_min, fill = mode)) +
   geom_boxplot(outlier.alpha = 0.2) +
   scale_fill_manual(values = c(PT = "#2980b9", Car = "#c0392b")) +
-  labs(title = "PT vs. car travel time per OD pair", x = NULL, y = "Duration (min)") +
-  theme_minimal() +
-  theme(legend.position = "none")
+  labs(x = NULL, y = "Duration (min)") +
+  theme_minimal(base_size = 18) +
+  theme(
+    legend.position = "none",
+    axis.title  = element_text(size = 20),
+    axis.text   = element_text(size = 19)
+  )
 
 ggsave("../Figures/Fig_duration_boxplot_pt_car.png", width = 6, height = 5, dpi = 300)
 
@@ -209,9 +211,13 @@ distance_long <- od_summary %>%
 ggplot(distance_long, aes(x = mode, y = distance_m, fill = mode)) +
   geom_boxplot(outlier.alpha = 0.2) +
   scale_fill_manual(values = c(PT = "#2980b9", Car = "#c0392b")) +
-  labs(title = "PT vs. car route distance per OD pair", x = NULL, y = "Distance (m)") +
-  theme_minimal() +
-  theme(legend.position = "none")
+  labs(x = NULL, y = "Distance (m)") +
+  theme_minimal(base_size = 18) +
+  theme(
+    legend.position = "none",
+    axis.title  = element_text(size = 20),
+    axis.text   = element_text(size = 19)
+  )
 
 ggsave("../Figures/Fig_distance_boxplot_pt_car.png", width = 6, height = 5, dpi = 300)
 cat("\nSaved Figures/Fig_duration_boxplot_pt_car.png and Fig_distance_boxplot_pt_car.png\n")

@@ -256,8 +256,8 @@ has run at least once.
    not just the High-High subset), PT-accessibility classification against
    GTFS stop frequency, and the multi-dimensional PT investment priority
    typology. Also cross-tabs rail access (nearest stop) against investment
-   priority class (checking whether "Car preference gap" cells already have
-   rail service), and re-runs LISA on a population/workplace-weighted
+   priority class (checking whether "Unexplained car dominance" cells already
+   have rail service), and re-runs LISA on a population/workplace-weighted
    version of the modal gap surface (weighting each route by
    origin population × destination workplaces instead of raw route count)
    as a robustness check on whether the High-High car-dominant clusters are
@@ -362,14 +362,18 @@ has run at least once.
     Builds a
     k-nearest-neighbour (k=8) spatial weights matrix (not the 120m
     distance-band weights used for LISA, since origin zones aren't on a
-    regular raster after aggregation). Reports AIC, pseudo-R², and
-    residual Moran's I for all five models side by side, plus the SDM's
-    direct/indirect/total effect decomposition (spillovers — does
-    improving PT at one origin measurably help its neighbors). Uses the
-    same reduced predictor set selected via step 10's VIF check (excludes
-    `pt_duration_min`, uses `car_directness`).
+    regular raster after aggregation). Re-checks multicollinearity via
+    VIF on this origin-level OLS model itself (all VIF < 3.4), a
+    stronger diagnostic than step 10's own VIF check, which runs on the
+    raw, pre-aggregation OD-pair data purely to select the predictor
+    set. Reports AIC, pseudo-R², and residual Moran's I for all five
+    models side by side, plus the SDM's direct/indirect/total effect
+    decomposition (spillovers — does improving PT at one origin
+    measurably help its neighbors). Uses the same reduced predictor set
+    selected via step 10's VIF check (excludes `pt_duration_min`, uses
+    `car_directness`).
     *Output: `gwr_sdm_comparison.csv`, `spatial_dependence_tests.csv`,
-    `sdm_impacts.csv`, `gwr_local_coefficients.csv`,
+    `sdm_impacts.csv`, `regression_vif.csv`, `gwr_local_coefficients.csv`,
     `Figures/Fig_GWR_local_R2.png`,
     `Figures/Fig_GWR_coef_dist_to_stop.png`*
 

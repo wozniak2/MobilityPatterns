@@ -134,14 +134,16 @@ cat("\nPriority breakdown:\n")
 print(table(car_zones$priority))
 
 # ── 6b. Rail access by investment priority class ─────────────────────────────
-# "Car preference gap" cells are, by definition (Table 3 typology), already
-# well served on physical accessibility and frequency -- car use there
-# reflects a behavioural preference, not an infrastructure gap. This checks
-# how much of that class is specifically explained by rail vs. bus-only
-# service: a high rail share would suggest the remaining barrier is
-# service-quality/behavioural even where the mode itself is rail, while a
-# low rail share would suggest upgrading bus corridors to rail-equivalent
-# service might close the gap.
+# "Unexplained car dominance" cells are, by definition (Table 3 typology),
+# already well served on physical accessibility and frequency, so the gap
+# there is not explained by stop proximity or departure frequency alone --
+# it is left open whether the remaining barrier is behavioural or an
+# unmeasured service-quality gap (see manuscript). This checks how much of
+# that class is specifically explained by rail vs. bus-only service: a high
+# rail share would suggest the remaining barrier persists even where the
+# mode itself is rail, while a low rail share is also consistent with rail
+# access simply being geometrically scarce in these suburbs, not with either
+# reading being confirmed.
 rail_by_priority <- car_zones %>%
   st_drop_geometry() %>%
   count(priority, nearest_stop_is_rail) %>%
@@ -154,12 +156,12 @@ print(rail_by_priority)
 write.csv(rail_by_priority, "rail_access_by_priority.csv", row.names = FALSE)
 
 car_pref_rail_share <- rail_by_priority %>%
-  filter(priority == "Car preference gap", nearest_stop_is_rail) %>%
+  filter(priority == "Unexplained car dominance", nearest_stop_is_rail) %>%
   pull(share)
 if (length(car_pref_rail_share) == 0) car_pref_rail_share <- 0
 
 cat(sprintf(
-  "\nOf cells classified as 'Car preference gap', %.1f%% already have rail access at the nearest stop.\n",
+  "\nOf cells classified as 'Unexplained car dominance', %.1f%% already have rail access at the nearest stop.\n",
   100 * car_pref_rail_share
 ))
 
@@ -295,16 +297,12 @@ ggplot() +
       "High priority — no nearby stop"     = "red",
       "High priority — infrequent service" = "hotpink",
       "Medium priority"                    = "green2",
-      "Car preference gap"                 = "yellow"
+      "Unexplained car dominance"          = "yellow"
     ),
     name = "Investment priority"
   ) +
   coord_sf(crs = 4326) +
-  labs(
-    title    = "PT investment priority zones",
-    subtitle = "Car-dominated areas (High-High LISA) weighted by population & service frequency"
-  ) +
-  theme_dark() +
+  theme_dark(base_size = 18) +
   theme(
     panel.background  = element_rect(fill = "#1a1a1a"),
     plot.background   = element_rect(fill = "#1a1a1a"),
@@ -313,12 +311,12 @@ ggplot() +
     text              = element_text(color = "white"),
     axis.text         = element_blank(),
     axis.title        = element_blank(),
-    legend.title      = element_text(size = 14, color = "white"),
-    legend.text       = element_text(size = 14, color = "white"),
+    legend.title      = element_text(size = 20, color = "white"),
+    legend.text       = element_text(size = 19, color = "white"),
     panel.grid.major  = element_blank(),
     panel.grid.minor  = element_blank()
   ) +
-  guides(color = guide_legend(override.aes = list(size = 5)))
+  guides(color = guide_legend(override.aes = list(size = 6)))
 
 print(table(car_zones$priority))
 

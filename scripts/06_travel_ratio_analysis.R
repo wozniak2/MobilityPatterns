@@ -193,12 +193,17 @@ ggplot(w_ratio_combined,
            fill = rail)) +
   geom_histogram(position = "identity", alpha = 0.5) +
   labs(
-    title = "Population-weighted PT/car ratio: rail vs. non-rail origins",
     x = "Workplace-weighted PT/car travel-time ratio (per origin)",
     y = "Density (weighted by working-age population)",
     colour = NULL, fill = NULL
   ) +
-  theme_minimal()
+  theme_minimal(base_size = 18) +
+  theme(
+    axis.title  = element_text(size = 19),
+    axis.text   = element_text(size = 18),
+    legend.text = element_text(size = 18),
+    legend.position = "top"
+  )
 
 ggsave("../Figures/Fig_travelratio_density_rail_vs_norail.png", width = 8, height = 6, dpi = 300)
 cat("Saved Figures/Fig_travelratio_density_rail_vs_norail.png\n")
@@ -223,16 +228,21 @@ cat("Saved Figures/Fig_travelratio_cumulative_population.png\n")
 
 #Rail vs. no rail
 ggplot(w_ratio_combined, aes(x = weighted_ratio, y = sum_pop/working_age_pop_sum, colour = rail)) +
-  geom_line() +
+  geom_line(linewidth = 1) +
   expand_limits(x = 0, y = 0) +
   scale_y_continuous(labels = scales::percent) +
   labs(
-    title = "Cumulative population share by PT/car ratio: rail vs. non-rail",
     x = "Workplace-weighted PT/car travel-time ratio (per origin)",
     y = "Cumulative share of working-age population",
     colour = NULL
   ) +
-  theme_minimal()
+  theme_minimal(base_size = 18) +
+  theme(
+    axis.title  = element_text(size = 19),
+    axis.text   = element_text(size = 18),
+    legend.text = element_text(size = 18),
+    legend.position = "top"
+  )
 
 ggsave("../Figures/Fig_travelratio_cumulative_population_rail_vs_norail.png", width = 8, height = 6, dpi = 300)
 cat("Saved Figures/Fig_travelratio_cumulative_population_rail_vs_norail.png\n")

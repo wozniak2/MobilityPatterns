@@ -82,7 +82,7 @@ od_map <- od_sf_3857 |>
 cat("\nWinner breakdown:\n")
 print(table(od_map$winner))
 
-dark_theme <- theme_dark() +
+dark_theme <- theme_dark(base_size = 18) +
   theme(
     panel.background  = element_rect(fill = "#1a1a1a"),
     plot.background   = element_rect(fill = "#1a1a1a"),
@@ -91,7 +91,9 @@ dark_theme <- theme_dark() +
     text              = element_text(color = "white"),
     axis.text         = element_blank(),
     axis.title        = element_blank(),
-    panel.grid        = element_blank()
+    panel.grid        = element_blank(),
+    plot.title        = element_text(size = 24, face = "bold", color = "white"),
+    plot.subtitle     = element_text(size = 15, color = "white")
   )
 
 map_limits <- list(
@@ -118,22 +120,12 @@ ggplot() +
   geom_sf(data = poz_wgs, fill = NA, colour = "white",
           linewidth = 0.5, inherit.aes = FALSE) +
   coord_sf(crs = 4326, xlim = map_limits$xlim, ylim = map_limits$ylim) +
-  labs(
-    title    = "PT vs car travel time competitiveness",
-    subtitle = sprintf(
-      "PT faster: %s  |  Comparable: %s  |  Car faster: %s  |  Car much faster: %s",
-      comma(sum(od_map$winner == "PT faster")),
-      comma(sum(od_map$winner == "Comparable")),
-      comma(sum(od_map$winner == "Car faster (1.5–2×)")),
-      comma(sum(od_map$winner == "Car much faster (>2×)"))
-    )
-  ) +
   dark_theme +
   theme(
-    legend.title = element_text(size = 12, color = "white"),
-    legend.text  = element_text(size = 11, color = "white")
+    legend.title = element_text(size = 20, color = "white"),
+    legend.text  = element_text(size = 19, color = "white")
   ) +
-  guides(colour = guide_legend(override.aes = list(size = 4, alpha = 1)))
+  guides(colour = guide_legend(override.aes = list(size = 5, alpha = 1)))
 
 ggsave("../Figures/Fig_PT_vs_car_travels.png", width = 12, height = 9, dpi = 300)
 cat("Saved Fig_PT_vs_car_travels.png\n")

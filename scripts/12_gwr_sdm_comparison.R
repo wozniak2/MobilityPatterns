@@ -60,7 +60,8 @@
 #          from_lon/from_lat)
 # OUTPUT : gwr_sdm_comparison.csv       -- AIC/pseudo-R2/Moran's I, all 5 models
 #          spatial_dependence_tests.csv -- LM tests (OLS) + LR tests (SDM vs SAR/SEM)
-#          sdm_impacts.csv              -- SDM direct/indirect/total effects
+#          sdm_impacts.csv              -- SDM direct/indirect/total effects + p-values
+#          regression_vif.csv           -- VIF on the reported origin-level OLS model
 #          gwr_local_coefficients.csv
 #          Figures/Fig_GWR_local_R2.png
 #          Figures/Fig_GWR_coef_dist_to_stop.png
@@ -191,6 +192,17 @@ ols_model <- lm(model_formula, data = origin_data)
 cat("\n--- OLS (origin-level baseline) ---\n")
 print(summary(ols_model))
 
+# Multicollinearity check on the model actually reported (Table 4), not the
+# raw pseudo-replicated OD-pair data checked in 10_regression_analysis.R
+# (that earlier check is a variable-selection diagnostic at the wrong
+# granularity for inference; this one is on the exact predictor set and row
+# granularity the OLS/SEM/SDM coefficients in the manuscript come from).
+cat("\nVIF on the origin-level OLS model (car::vif):\n")
+vif_vals <- car::vif(ols_model)
+print(sort(vif_vals, decreasing = TRUE))
+write.csv(data.frame(variable = names(vif_vals), vif = as.numeric(vif_vals)),
+          "regression_vif.csv", row.names = FALSE)
+
 cat("\nMoran's I on OLS residuals:\n")
 print(lm.morantest(ols_model, lw))
 
@@ -277,15 +289,25 @@ write.csv(rbind(lm_tests_df, lr_tests_df), "spatial_dependence_tests.csv", row.n
 # don't decompose spillovers this way.
 cat("\nSDM impact decomposition (direct/indirect/total effects):\n")
 sdm_impacts <- impacts(sdm_model, listw = lw, R = 500)
-print(summary(sdm_impacts, zstats = TRUE))  # full output incl. z-stats/p-values, console only
+sdm_impacts_summary <- summary(sdm_impacts, zstats = TRUE)
+print(sdm_impacts_summary)  # full output incl. z-stats/p-values, console only
 
-# Point estimates only, from the stable base impacts() slots (summary.lagImpact's
-# internal structure has changed across spatialreg versions, so avoid relying on it)
+# BUG FIX (found 2026-07-28, via external manuscript review): point estimates
+# live under sdm_impacts$res$direct/$indirect/$total, NOT sdm_impacts$direct/
+# $indirect/$total directly -- the previous version of this code read the
+# latter, which don't exist on a "LagImpact" object in this spatialreg version
+# (1.4.3), so every field silently resolved to NULL and write.csv() wrote an
+# empty file with no warning or error. p-values (from the R=500 simulation)
+# are taken from summary(sdm_impacts, zstats=TRUE)$pzmat, whose three columns
+# are, in order, Direct/Indirect/Total (matching the console print above).
 sdm_impacts_df <- data.frame(
-  variable = names(sdm_impacts$direct),
-  direct   = sdm_impacts$direct,
-  indirect = sdm_impacts$indirect,
-  total    = sdm_impacts$total
+  variable   = names(sdm_impacts$res$direct),
+  direct     = sdm_impacts$res$direct,
+  indirect   = sdm_impacts$res$indirect,
+  total      = sdm_impacts$res$total,
+  direct_p   = sdm_impacts_summary$pzmat[, 1],
+  indirect_p = sdm_impacts_summary$pzmat[, 2],
+  total_p    = sdm_impacts_summary$pzmat[, 3]
 )
 write.csv(sdm_impacts_df, "sdm_impacts.csv", row.names = FALSE)
 

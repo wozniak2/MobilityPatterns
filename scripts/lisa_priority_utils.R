@@ -150,13 +150,13 @@ classify_car_zones <- function(car_zones, stops_poznan, pop_threshold) {
           freq_service == "Medium frequency"                                      ~ "Medium priority",
         working_age_pop >= pop_threshold &
           pt_accessibility == "Good (< 300m)" &
-          freq_service %in% c("Medium frequency", "High frequency")              ~ "Car preference gap",
+          freq_service %in% c("Medium frequency", "High frequency")              ~ "Unexplained car dominance",
         TRUE                                                                      ~ "Low priority"
       ) %>% factor(levels = c(
         "High priority — no nearby stop",
         "High priority — infrequent service",
         "Medium priority",
-        "Car preference gap",
+        "Unexplained car dominance",
         "Low priority"
       ))
     )
