@@ -148,6 +148,18 @@ plain text.
 
 ## Running the pipeline
 
+**One-command run: `scripts/00_run_pipeline.R`** (or `run_pipeline.ps1` at the
+repo root, a thin wrapper around it) runs every step in order in one go, each
+in its own fresh `Rscript` process. It skips the expensive, one-time phase A
+(steps 01-05: grids + r5r routing + itinerary consolidation) automatically if
+`itineraries_results.rds`/`pt_itineraries.rds`/`car_itineraries.rds` already
+exist in `Data/`, and always runs phase B (steps 06-12, the actual analysis
+outputs) fresh. Pass `--force` (`-Force` for the `.ps1`) to redo phase A from
+scratch too -- step 04 alone can take hours, so only do this deliberately.
+Prints a PASS/FAIL/SKIPPED summary with per-step timings at the end. See the
+header comment in `00_run_pipeline.R` for full detail; the manual,
+one-script-at-a-time workflow described below still works exactly as before.
+
 Each script's first line of substance is an absolute `setwd(...)` pointing
 at the local data folder (currently
 `C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data` — update this
