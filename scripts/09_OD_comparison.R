@@ -127,7 +127,10 @@ ggplot() +
   ) +
   guides(colour = guide_legend(override.aes = list(size = 5, alpha = 1)))
 
-ggsave("../Figures/Fig_PT_vs_car_travels.png", width = 12, height = 9, dpi = 300)
+# coord_sf() locks the panel to the map's true aspect ratio, which is narrower
+# than the old height=9 canvas at width=12 -- that left an empty top/bottom
+# margin (same fill as plot.background) that rendered as solid black bars.
+ggsave("../Figures/Fig_PT_vs_car_travels.png", width = 12, height = 8.0, dpi = 300)
 cat("Saved Fig_PT_vs_car_travels.png\n")
 
 # =============================================================================

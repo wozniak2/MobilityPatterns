@@ -320,7 +320,10 @@ ggplot() +
 
 print(table(car_zones$priority))
 
-ggsave("../Figures/Fig_PT_investment_priority.png", width = 12, height = 9, dpi = 300)
+# coord_sf() locks the panel to the map's true aspect ratio, which is narrower
+# than the old height=9 canvas at width=12 -- that left an empty top/bottom
+# margin (same fill as plot.background) that rendered as solid black bars.
+ggsave("../Figures/Fig_PT_investment_priority.png", width = 12, height = 6.56, dpi = 300)
 
 # ── 9. Robustness check: population/workplace-weighted modal gap surface ────
 # The modal gap surface above (step 1) counts raw ROUTES through each pixel

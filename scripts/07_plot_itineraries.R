@@ -126,7 +126,11 @@ car_iti <- ggplot(df_plot_car) +
 require(patchwork)
 pt_iti + car_iti
 
-ggsave("../Figures/Fig_cars_pt_itineraries.png", width = 12, height = 9, dpi = 300)
+# Both panels use coord_equal() on a near-square extent (data x:y aspect ~1.05-1.10),
+# so at width=12in the map area only needs ~4in of height to fill the canvas --
+# height=9 left a large empty top/bottom margin (same fill colour as the panel
+# background, so it rendered as solid black bars).
+ggsave("../Figures/Fig_cars_pt_itineraries.png", width = 12, height = 3.95, dpi = 300)
 
 # =============================================================================
 # Descriptive statistics: PT vs. car route characteristics
