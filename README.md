@@ -1,4 +1,4 @@
-# Commuting Efficiency and PT Accessibility Deficits in the Poznań Metropolitan Area
+# Beyond Accessibility: Diagnosing Car–Public Transport Competitiveness and Spatial Disparities Using Synthetic Trajectories
 
 ## About this repository
 
