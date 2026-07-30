@@ -55,7 +55,17 @@ build_od_comparison <- function(pt_itineraries, car_itineraries) {
     summarise(
       pt_duration_min = min(total_duration, na.rm = TRUE),
       pt_distance_m   = min(total_distance, na.rm = TRUE),
-      n_transfers     = max(segment, na.rm = TRUE) - 1,
+      # BUG FIX (found 2026-07-30): `max(segment) - 1` counts every leg of the
+      # itinerary, including the walk to the first stop and from the last stop
+      # -- present on every trip regardless of transfers -- plus any walk
+      # between vehicles. It is not a transfer count: a single-bus, zero-
+      # transfer trip (WALK-BUS-WALK) already scores 2 under that formula.
+      # True transfers = vehicle boardings - 1 (floored at 0 for the rare
+      # walk-only itinerary). Re-running the regression with this corrected
+      # variable (in place of, and also split further into walking- vs.
+      # same-platform transfers) left every other reported finding
+      # unchanged -- see project memory for the full comparison.
+      n_transfers     = pmax(sum(mode != "WALK", na.rm = TRUE) - 1, 0),
       has_rail        = any(mode == "RAIL"),
       modes           = paste(unique(mode), collapse = "+"),
       .groups = "drop"
