@@ -51,7 +51,7 @@ Origin–destination pairs classified by PT/car travel time ratio (`09_OD_compar
 
 ## Requirements
 
-- **R** (version TBD — specify the version you developed against)
+- **R** (developed and tested with R 4.4.1)
 - Key packages:
   - `dplyr`, `tidyverse`, `ggplot2`, `patchwork`, `ggnewscale` — data
     wrangling and plotting
@@ -110,7 +110,9 @@ Origin–destination pairs classified by PT/car travel time ratio (`09_OD_compar
 ## Repository structure
 
 ```
+run_pipeline.ps1   <- thin wrapper around scripts/00_run_pipeline.R, run from repo root
 scripts/
+├── 00_run_pipeline.R
 ├── 01_calculate_workplaces.R
 ├── 02_distribute_population.R
 ├── 03_merge_pop_workplaces.R
@@ -178,10 +180,10 @@ a `REQUIRES TO RUN:` header comment, alongside every upstream `.rds`/
 01 ─┐
     ├─→ 04 → 05 ─┬─→ 06
 02 ─┘             ├─→ 07
-                   ├─→ 08  ─┐
-                   ├─→ 09   │
-                   ├─→ 10 → 12 │
-                   └─→ 11   │
+                   ├─→ 08
+                   ├─→ 09
+                   ├─→ 10 → 12
+                   └─→ 11
 03 (diagnostic, reads outputs of 01 & 02, not required by 04)
 
 06, 07, 09, 10 all source od_pair_utils.R (collapses raw itineraries to
@@ -229,7 +231,10 @@ has run at least once.
 4. **`04_r5r_route_batch.R`** — Runs batch multimodal routing (r5r) across
    municipalities, generating PT and car itineraries for each OD pair
    above population/workplace cutoffs.
-   *Output: `itineraries/{pt,car}_itineraries_<municipality>.gpkg`*
+   *Output: `{pt,car}_itineraries_<municipality>.gpkg`, written directly to
+   `Data/` (not to an `itineraries/` subfolder, despite the name) — these
+   per-municipality files are intermediate and mostly cleaned up once step 05
+   has consolidated them; only stragglers persist afterward.*
 5. **`05_read_itineraries.R`** — Reads and consolidates the raw routing
    output into combined itineraries datasets, and rasterizes per-county
    flow density at 120 m for later mapping.
@@ -391,7 +396,12 @@ step 05 has produced its output (for 06, 07, 08, 09, 10, 11), or step 10
 
 If you use this repository or its outputs, please cite:
 
-> [Manuscript citation — TBD, forthcoming]
+> Wozniak, M., Radzimski, A. Beyond Accessibility: Diagnosing Car–Public
+> Transport Competitiveness and Spatial Disparities Using Synthetic
+> Trajectories. Manuscript submitted to *Computers, Environment and Urban
+> Systems*.
+>
+> [Update with full citation — volume/pages/DOI — once accepted/published.]
 
 ## License
 
