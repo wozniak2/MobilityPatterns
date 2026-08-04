@@ -75,9 +75,9 @@ pt_iti <- ggplot(df_plot_pt) +
   geom_raster(aes(x = x, y = y, fill = log1p(freq))) +
   scale_fill_viridis_c(option = "viridis", na.value = "black") +
   coord_equal() +
-  geom_sf(data = poz_3857, fill = NA, colour = "red",
-          linewidth = 0.4, inherit.aes = FALSE) +
-  theme_dark(base_size = 20) +
+  geom_sf(data = poz_3857, fill = NA, colour = "white",
+          linewidth = 0.6, inherit.aes = FALSE) +
+  theme_dark() +
 
   theme(
     panel.background = element_rect(fill = "#1a1a1a"),
@@ -101,9 +101,9 @@ car_iti <- ggplot(df_plot_car) +
   geom_raster(aes(x = x, y = y, fill = log1p(freq))) +
   scale_fill_viridis_c(option = "viridis", na.value = "black") +
   coord_equal() +
-  geom_sf(data = poz_3857, fill = NA, colour = "red",
-          linewidth = 0.4, inherit.aes = FALSE) +
-  theme_dark(base_size = 20) +
+  geom_sf(data = poz_3857, fill = NA, colour = "white",
+          linewidth = 0.6, inherit.aes = FALSE) +
+  theme_dark() +
 
   theme(
     panel.background = element_rect(fill = "#1a1a1a"),
