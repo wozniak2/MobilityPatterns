@@ -55,6 +55,10 @@ Origin–destination pairs classified by PT/car travel time ratio (`09_OD_compar
 - Key packages:
   - `dplyr`, `tidyverse`, `ggplot2`, `patchwork`, `ggnewscale` — data
     wrangling and plotting
+  - `ggrepel` — collision-free point labels in
+    `11b_town_rural_validation_chart.R`
+  - `ggpubr` — combined-panel plotting in `02_distribute_population.R`
+  - `tmap` — thematic mapping in `01_calculate_workplaces.R`
   - `sf`, `terra` — spatial/raster data handling
   - `osmdata` — OSM boundary/road/POI queries (live Overpass API calls)
   - `r5r` (+ `rJavaEnv`) — multimodal routing (requires Java 21; see the
@@ -124,6 +128,8 @@ scripts/
 ├── 09_OD_comparison.R
 ├── 10_regression_analysis.R
 ├── 11_validate_od_flows.R
+├── 11b_town_rural_validation_chart.R
+├── 11c_validation_ratio_map.R
 ├── 12_spatial_regression_comparison.R
 ├── lisa_priority_utils.R   <- shared LISA/priority-typology helpers, sourced by 08 and 10
 └── od_pair_utils.R         <- shared OD-pair-comparison helper, sourced by 06, 07, 09 and 10
@@ -350,6 +356,23 @@ has run at least once.
     `od_validation_beta_sensitivity.csv`,
     `Figures/Fig_od_validation_scatter.png`,
     `Figures/Fig_od_validation_share_by_municipality.png`*
+11b. **`11b_town_rural_validation_chart.R`** — Reads step 11's
+    `od_validation_neighborhood_to_core.csv` and turns the seven-pair
+    town/rural under-prediction asymmetry (already described in prose in
+    the manuscript's Validation subsection) into a paired slope chart:
+    each ring municipality administratively split into a *miasto* (town)
+    and *obszar wiejski* (rural) unit gets its observed/predicted share
+    ratio plotted for both units side by side, connected by a line, so
+    the "rural exceeds town in every pair" pattern is visible at a glance
+    rather than only readable as a list of numbers.
+    *Output: `Figures/Fig_od_validation_town_rural.png`*
+11c. **`11c_validation_ratio_map.R`** — Reads the same
+    `od_validation_neighborhood_to_core.csv` plus `ap.gpkg`/`poz.gpkg`,
+    and maps the same observed/predicted ratio as a municipality-level
+    choropleth across all `M=24` matched municipalities, rather than just
+    the seven town/rural pairs. Exploratory: this output is not currently
+    referenced in the manuscript.
+    *Output: `Figures/Fig_od_validation_ratio_map.png`*
 12. **`12_spatial_regression_comparison.R`** — Formally tests which spatial
     specification best fits the origin-zone PT/car travel-time ratio,
     following standard spatial-econometrics practice: fits OLS, runs
@@ -410,4 +433,5 @@ redistributing input data]
 
 ## Contact
 
-[Maintainer name / email / affiliation — TBD]
+Marcin Wozniak (corresponding author), woz@amu.edu.pl — Faculty of Human
+Geography and Planning, Adam Mickiewicz University, Poznań, Poland.
