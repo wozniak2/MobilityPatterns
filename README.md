@@ -221,193 +221,71 @@ files and writes `itineraries_results.rds`, `pt_itineraries.rds`, and
 fresh R sessions, in any order relative to each other, as long as step 05
 has run at least once.
 
-1. **`01_calculate_workplaces.R`** — Derives a 200 m workplace grid from
-   BDOT10k building floor area (`work_bdot.gpkg`) and CEIDG small-business
-   counts (`ceidg_geocode.csv`), weighted and scaled to the city's total
-   workplace count.
+1. **`01_calculate_workplaces.R`** — Builds a 200 m workplace grid from
+   BDOT10k floor area and CEIDG business counts.
    *Output: `workplace_grid.gpkg`*
 2. **`02_distribute_population.R`** — Distributes working-age population
    across a 200 m grid, clipped to municipality boundaries.
    *Output: `pop_grid.gpkg`*
-3. **`03_merge_pop_workplaces.R`** — Spatially joins the population and
-   workplace grids into one combined dataset and produces introductory
-   figures (population/workplace density, OD commuter flows). Diagnostic
-   step, not required by routing.
+3. **`03_merge_pop_workplaces.R`** — Joins the population and workplace
+   grids and produces introductory figures. Diagnostic only, not required
+   by routing.
    *Output: `pop_workplaces_grid.gpkg`, `pop_wp_flows_grid.gpkg`, `OD_sf.gpkg`*
-4. **`04_r5r_route_batch.R`** — Runs batch multimodal routing (r5r) across
-   municipalities, generating PT and car itineraries for each OD pair
-   above population/workplace cutoffs.
-   *Output: `{pt,car}_itineraries_<municipality>.gpkg`, written directly to
-   `Data/` (not to an `itineraries/` subfolder, despite the name) — these
-   per-municipality files are intermediate and mostly cleaned up once step 05
-   has consolidated them; only stragglers persist afterward.*
-5. **`05_read_itineraries.R`** — Reads and consolidates the raw routing
-   output into combined itineraries datasets, and rasterizes per-county
-   flow density at 120 m for later mapping.
+4. **`04_r5r_route_batch.R`** — Runs batch multimodal routing (r5r) to
+   generate PT and car itineraries for each OD pair above the
+   population/workplace cutoffs.
+   *Output: `{pt,car}_itineraries_<municipality>.gpkg` (intermediate,
+   consolidated by step 05)*
+5. **`05_read_itineraries.R`** — Consolidates raw routing output and
+   rasterizes flow density at 120 m.
    *Output: `itineraries_results.rds`, `pt_itineraries.rds`, `car_itineraries.rds`*
 6. **`06_travel_ratio_analysis.R`** — Collapses itineraries to one row per
-   OD pair via `od_pair_utils.R`'s shared `build_od_comparison()`, attaches
-   population/workplace weights, then explores the resulting PT/car
-   travel-time ratios: population-weighted distributions, rail vs.
-   non-rail comparison, competitive vs. improvement-needed itineraries.
-   (Merged 2026-07-27 from the former `06_add_weights_to_itineraries.R` +
-   `07_explore_travel_ratios.R` — the weights CSV had exactly one
-   consumer, so splitting weight-attachment from the analysis reading it
-   straight back in was pure indirection; still written to disk as an
-   audit artifact, just no longer round-tripped through a second script.)
-   *Output: `itineraries_weights.csv`,
-   `Figures/Fig_travelratio_density.png`,
-   `Figures/Fig_travelratio_density_rail.png`,
-   `Figures/Fig_travelratio_density_norail.png`,
-   `Figures/Fig_travelratio_density_rail_vs_norail.png`,
-   `Figures/Fig_travelratio_cumulative_population.png`,
-   `Figures/Fig_travelratio_cumulative_population_rail_vs_norail.png`,
+   OD pair, attaches population/workplace weights, and explores PT/car
+   travel-time ratios (rail vs. non-rail, competitive vs.
+   improvement-needed).
+   *Output: `itineraries_weights.csv`, several `Figures/Fig_travelratio_*.png`,
    `competitive_by_municipality.csv`, `improvement_by_municipality.csv`*
-7. **`07_plot_itineraries.R`** — Generates map-based visualizations of
-   itinerary flow density for PT vs. car, plus route-level descriptive
-   statistics per OD pair (duration, distance, transfers, PT/car
-   competitiveness breakdown) via `od_pair_utils.R`'s shared
-   `build_od_comparison()`, since those attributes aren't present in the
-   rasterized flow surfaces used for the map.
+7. **`07_plot_itineraries.R`** — Maps itinerary flow density for PT vs.
+   car and reports route-level descriptive statistics (duration,
+   distance, transfers, competitiveness).
    *Output: `Figures/Fig_cars_pt_itineraries.png`,
    `Figures/Fig_duration_boxplot_pt_car.png`,
    `Figures/Fig_distance_boxplot_pt_car.png`,
-   `itinerary_summary_stats.csv`,
-   `itinerary_competitiveness_breakdown.csv`*
+   `itinerary_summary_stats.csv`, `itinerary_competitiveness_breakdown.csv`*
 8. **`08_analyse_itineraries.R`** — LISA clustering of car-vs-PT flow
-   density (mapped as the full four-quadrant HH/LL/HL/LH classification,
-   not just the High-High subset), PT-accessibility classification against
-   GTFS stop frequency, and the multi-dimensional PT investment priority
-   typology. Also cross-tabs rail access (nearest stop) against investment
-   priority class (checking whether "Unexplained car dominance" cells already
-   have rail service), and re-runs LISA on a population/workplace-weighted
-   version of the modal gap surface (weighting each route by
-   origin population × destination workplaces instead of raw route count)
-   as a robustness check on whether the High-High car-dominant clusters are
-   demand-driven or partly an artifact of raw route presence in low-demand
-   cells.
+   density, PT-accessibility/frequency classification, and the PT
+   investment priority typology, plus a rail-access cross-tab and a
+   population-weighted robustness check on the clustering.
    *Output: `Figures/Fig_LISA_cluster_map.png`,
    `Figures/Fig_PT_investment_priority.png`,
-   `rail_access_by_priority.csv`,
-   `lisa_weighted_robustness_crosstab.csv`*
-9. **`09_OD_comparison.R`** — OD travel-time comparison (PT vs. car)
-   across counties near Poznań: builds the per-OD-pair `tt_ratio` summary
-   via `od_pair_utils.R`'s shared `build_od_comparison()` (also used by
-   06/07/10) and maps it directly (point map, hex-binned median, and
-   origin-level mean). Previously also rebuilt its own LISA/car-zone
-   classification from scratch to tag each OD pair with a
-   corridor-priority class, duplicating step 08's computation — that
-   result (`corridor_type_val`/`df_ratio_facet`) was never actually used
-   in any of the three saved figures, so the dead rebuild was removed.
+   `rail_access_by_priority.csv`, `lisa_weighted_robustness_crosstab.csv`*
+9. **`09_OD_comparison.R`** — Maps the per-OD-pair PT/car travel-time
+   ratio (point map, hex-binned, origin-level mean).
    *Output: `Figures/Fig_PT_vs_car_travels.png`,
    `Figures/Fig_PT_vs_car_travels_HEX.png`,
    `Figures/Fig_PT_vs_car_travels_by_origin.png`*
-10. **`10_regression_analysis.R`** — Builds a per-OD-pair regression
-    dataset (PT/car efficiency, route directness, GTFS stop distance and
-    frequency, rail access, origin/destination population exposure),
-    starting from `od_pair_utils.R`'s shared `build_od_comparison()`
-    (also used by 06/07/09), and runs correlation and VIF diagnostics on
-    the PT/car travel time ratio, purely to select the final predictor
-    set. Uses `stops_poznan` (with
-    `is_rail`/`service_days`) from `load_gtfs_stops()` in
-    `lisa_priority_utils.R`, and `pop_grid.gpkg` from step 02, for the
-    stop- and population-based variables. `vif_model` excludes
-    `pt_duration_min` (the outcome's own numerator) and uses
-    `car_directness` in place of `car_speed_kmh` (derived from
-    `car_duration_min`, the outcome's denominator) — both share mechanical
-    components with `tt_ratio` and would otherwise be close to circular as
-    predictors. Also attaches `dest_workplaces` (workplace count at the
-    destination cell, from `workplace_grid.gpkg`); it is not itself a
-    model predictor, it is carried through purely as the aggregation
-    weight step 12 uses when collapsing to origin level. This script does
-    *not* fit and report an OLS model itself — the predictor set selected
-    here (via `vif_vals`) is fit properly, aggregated to one row per
-    origin zone, as the actual reported baseline in
-    `12_spatial_regression_comparison.R`; an earlier version of this script re-fit
-    the same formula a second time on the raw, pseudo-replicated OD-pair
-    data purely as a throwaway sanity check, which duplicated step 12's
-    model for no downstream benefit and was removed.
+10. **`10_regression_analysis.R`** — Builds the per-OD-pair regression
+    dataset and runs VIF/correlation diagnostics to select the final
+    predictor set (fit properly in step 12).
     *Output: `regression_data.csv`*
 11. **`11_validate_od_flows.R`** — Validates synthetic routing output
-    against the empirical census LAU-to-LAU commuting matrix
-    (`OD_flows.csv`), restricted to **neighborhood → core** commuting:
-    flows from the municipalities surrounding Poznań into the Poznań core
-    itself. `ap.gpkg` and `poz.gpkg` are used together for municipality
-    classification: `ap.gpkg` contains the ring of surrounding
-    municipalities and no Poznań polygon, while `poz.gpkg` contains
-    exactly the Poznań core and none of the ring (verified directly
-    against both files — the opposite of what their names and earlier
-    in-code comments suggested). The core municipality is taken directly
-    from `poz.gpkg`, and "neighborhood" is every municipality in
-    `ap.gpkg`. Aggregates surviving grid-cell
-    OD pairs (union of car- and PT-reachable pairs) into a
-    population(origin) × workplaces(destination) / travel_time^β
-    distance-decayed gravity-style proxy for synthetic flow volume per
-    neighborhood municipality. β is grid-searched over {0, 0.5, 1, 1.5, 2}
-    (β=0 = plain undecayed pop×workplaces) and selected by whichever value
-    maximises the log-log OLS R² against census commuters — R² rather than
-    Spearman ρ, since ρ is rank-only and ties across nearby β values.
-    Matches against census commuters by municipality name, and reports the
-    Spearman rank correlation plus a ranked bar chart comparing each
-    municipality's *share* of the total neighborhood→core flow (synthetic
-    proxy and census aren't on the same scale, so only relative share/rank
-    is directly comparable, not absolute magnitude).
+    against the census commuting matrix for neighbourhood → core flows,
+    via a population × workplace gravity-style proxy with a
+    grid-searched distance-decay exponent.
     *Output: `od_validation_neighborhood_to_core.csv`,
     `od_validation_beta_sensitivity.csv`,
     `Figures/Fig_od_validation_scatter.png`,
     `Figures/Fig_od_validation_share_by_municipality.png`*
-11b. **`11b_town_rural_validation_chart.R`** — Reads step 11's
-    `od_validation_neighborhood_to_core.csv` and turns the seven-pair
-    town/rural under-prediction asymmetry (already described in prose in
-    the manuscript's Validation subsection) into a paired slope chart:
-    each ring municipality administratively split into a *miasto* (town)
-    and *obszar wiejski* (rural) unit gets its observed/predicted share
-    ratio plotted for both units side by side, connected by a line, so
-    the "rural exceeds town in every pair" pattern is visible at a glance
-    rather than only readable as a list of numbers.
+11b. **`11b_town_rural_validation_chart.R`** — Paired slope chart of the
+    town/rural under-prediction asymmetry from step 11's output.
     *Output: `Figures/Fig_od_validation_town_rural.png`*
-11c. **`11c_validation_ratio_map.R`** — Reads the same
-    `od_validation_neighborhood_to_core.csv` plus `ap.gpkg`/`poz.gpkg`,
-    and maps the same observed/predicted ratio as a municipality-level
-    choropleth across all `M=24` matched municipalities, rather than just
-    the seven town/rural pairs. Exploratory: this output is not currently
+11c. **`11c_validation_ratio_map.R`** — Municipality-level choropleth of
+    the same ratio, all 24 matched municipalities. Exploratory, not
     referenced in the manuscript.
     *Output: `Figures/Fig_od_validation_ratio_map.png`*
-12. **`12_spatial_regression_comparison.R`** — Formally tests which spatial
-    specification best fits the origin-zone PT/car travel-time ratio,
-    following standard spatial-econometrics practice: fits OLS, runs
-    Lagrange Multiplier tests (`spdep::lm.LMtests()`, LMerr/LMlag +
-    robust versions) to diagnose whether the data supports a spatial lag
-    process, an error process, or both, then fits the three nested
-    models this points to — SAR (lag only), SEM (error only), and SDM
-    (Durbin: lag + spatially-lagged predictors) — and likelihood-ratio
-    tests SDM against SAR and SEM (`spatialreg::LR.sarlm()`) to confirm
-    the extra Durbin complexity is actually justified rather than
-    assumed. (A GWR fit and its two figures were removed 2026-07-28 — GWR
-    was never part of what the study actually estimates, only OLS/SAR/SEM/SDM
-    are; if it's ever wanted again, `GWmodel::bw.gwr()`/`gwr.basic()` on this
-    script's `model_formula` is where it was.)
-    Aggregates `regression_data.csv` from OD-pair level to one row per
-    origin grid cell since these models need one observation per location.
-    Origin-constant predictors (e.g. `dist_to_stop_m`, `origin_dist_centre_km`)
-    use a plain mean; `tt_ratio` and other destination-varying predictors
-    use a `dest_workplaces`-weighted mean across that origin's destinations,
-    so a destination with many more jobs dominates the origin's outcome
-    rather than being averaged in unweighted alongside a near-empty one.
-    Builds a
-    k-nearest-neighbour (k=8) spatial weights matrix (not the 120m
-    distance-band weights used for LISA, since origin zones aren't on a
-    regular raster after aggregation). Re-checks multicollinearity via
-    VIF on this origin-level OLS model itself (all VIF < 1.9 on the
-    current 9-predictor set — `dest_working_age_pop` was dropped
-    2026-07-28), a stronger diagnostic than step 10's own VIF check,
-    which runs on the raw, pre-aggregation OD-pair data purely to select
-    the predictor set. Reports AIC, pseudo-R², and residual Moran's I for
-    all four models side by side, plus the SDM's direct/indirect/total
-    effect decomposition (spillovers — does improving PT at one origin
-    measurably help its neighbors). Uses the same reduced predictor set
-    selected via step 10's VIF check (excludes `pt_duration_min`, uses
-    `car_directness`).
+12. **`12_spatial_regression_comparison.R`** — Fits OLS/SAR/SEM/SDM on the
+    origin-level PT/car ratio, runs LM/LR tests to justify the spatial
+    specification, and reports the SDM effect decomposition.
     *Output: `spatial_regression_comparison.csv`, `spatial_dependence_tests.csv`,
     `sdm_impacts.csv`, `regression_vif.csv`*
 
