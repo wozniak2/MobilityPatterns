@@ -1,4 +1,4 @@
-# Beyond Accessibility: Diagnosing Car–Public Transport Competitiveness and Spatial Disparities Using Synthetic Trajectories
+# Beyond Accessibility: Diagnosing Car–Public Transport Route Competitiveness Using Synthetic Trajectories
 
 ## About this repository
 
