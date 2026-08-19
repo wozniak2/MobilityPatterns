@@ -3,7 +3,7 @@
 #
 # Formally tests which spatial specification best fits the origin-zone
 # PT/car travel-time ratio, motivated by the significant global Moran's I
-# found on the modal gap surface in 08_analyse_itineraries.R (I = 0.182,
+# found on the route density gap surface in 08_analyse_itineraries.R (I = 0.182,
 # z = 595.09, p < 2.2e-16): OLS residuals are not spatially independent, so
 # plain lm() understates uncertainty and cannot capture spatial dependence.
 #

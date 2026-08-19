@@ -35,10 +35,10 @@ The core workflow combines:
 - **Spatial regression comparison** (OLS baseline, Lagrange Multiplier
   tests, SAR, SEM, and Spatial Durbin Model) on origin-zone PT/car
   travel-time ratios, motivated by the significant global Moran's I found
-  on the modal gap surface — plain OLS residuals are not spatially
+  on the route density gap surface — plain OLS residuals are not spatially
   independent (`12_spatial_regression_comparison.R`).
 
-The output of this pipeline supports a manuscript analyzing modal gaps and
+The output of this pipeline supports a manuscript analyzing car--PT route density gaps and
 PT accessibility deficits in the Poznań metropolitan area, intended for
 transport geography and spatial information science audiences.
 

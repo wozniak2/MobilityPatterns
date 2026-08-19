@@ -325,15 +325,15 @@ print(table(car_zones$priority))
 # margin (same fill as plot.background) that rendered as solid black bars.
 ggsave("../Figures/Fig_PT_investment_priority.png", width = 12, height = 6.56, dpi = 300)
 
-# ── 9. Robustness check: population/workplace-weighted modal gap surface ────
-# The modal gap surface above (step 1) counts raw ROUTES through each pixel
+# ── 9. Robustness check: population/workplace-weighted route density gap ────
+# The route density gap surface above (step 1) counts raw ROUTES through each pixel
 # -- a route from a near-empty grid cell counts the same as one from a
 # densely populated cell. This rebuilds the same log-difference surface but
 # weights each itinerary by working_age_pop(origin) x workplaces(destination)
 # before rasterizing, then re-runs LISA, to check whether the car-dominant
 # (HH) clusters reported above are genuinely demand-driven or partly an
 # artifact of raw route presence in low-demand cells.
-cat("\n=== Robustness check: population/workplace-weighted modal gap ===\n")
+cat("\n=== Robustness check: population/workplace-weighted route density gap ===\n")
 
 # itineraries_results.rds (loaded at the top) only carries the pre-rasterized
 # counts, not the route geometries needed to rasterize by weight instead of
