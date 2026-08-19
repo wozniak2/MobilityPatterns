@@ -83,7 +83,7 @@ ggplot() +
   ) +
   coord_sf(crs = 4326) +
   labs(
-    title    = "Spatial clustering of the car/PT modal gap (LISA)",
+    title    = "Spatial clustering of the car/PT route density gap (LISA)",
     subtitle = "Local Moran's I, p < 0.05; non-significant cells omitted"
   ) +
   theme_dark() +
