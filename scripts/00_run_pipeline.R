@@ -14,9 +14,15 @@
 # Steps 01-05 (workplace/population grids, r5r multimodal routing, itinerary
 # consolidation) are the expensive, one-time "data prep" phase -- step 04 in
 # particular is a multi-hour r5r batch routing job requiring Java 21 and raw
-# OSM/GTFS inputs. Steps 06-12 are the actual analysis: figures, tables,
-# regression, validation -- this is what "get all outcomes" means day to
-# day, and they always run.
+# OSM/GTFS inputs. Steps 06-13 are the actual analysis: figures, tables,
+# regression, GWR, validation -- this is what "get all outcomes" means day
+# to day, and they always run.
+#
+# Not included here: gwr_robustness_check.R (no number prefix, deliberately
+# excluded) -- an optional, ~9-hour validation of step 13's GWR results
+# against an independent estimator. Run it manually if it ever needs
+# reproducing; see its own header comment for why it's this slow and why
+# it's not part of the normal pipeline.
 #
 # Default (smart) behaviour: if Data/itineraries_results.rds,
 # pt_itineraries.rds and car_itineraries.rds all already exist, phase A

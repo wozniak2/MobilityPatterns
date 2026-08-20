@@ -33,10 +33,15 @@ The core workflow combines:
   workplace gravity-style proxy for synthetic OD volume to the empirical
   LAU-to-LAU commuting matrix (`11_validate_od_flows.R`).
 - **Spatial regression comparison** (OLS baseline, Lagrange Multiplier
-  tests, SAR, SEM, and Spatial Durbin Model) on origin-zone PT/car
+  tests, SEM, and Spatial Durbin Model) on origin-zone PT/car
   travel-time ratios, motivated by the significant global Moran's I found
   on the route density gap surface — plain OLS residuals are not spatially
   independent (`12_spatial_regression_comparison.R`).
+- **Geographically weighted regression (GWR)** on the same origin-zone
+  model, testing whether predictors' associations with the travel-time
+  ratio are spatially uniform or vary by location — a complement to the
+  spatial-dependence models above, which hold every coefficient fixed
+  across the study area (`13_gwr_analysis.R`).
 
 The output of this pipeline supports a manuscript analyzing car--PT route density gaps and
 PT accessibility deficits in the Poznań metropolitan area, intended for
@@ -55,8 +60,6 @@ Origin–destination pairs classified by PT/car travel time ratio (`09_OD_compar
 - Key packages:
   - `dplyr`, `tidyverse`, `ggplot2`, `patchwork`, `ggnewscale` — data
     wrangling and plotting
-  - `ggrepel` — collision-free point labels in
-    `11b_town_rural_validation_chart.R`
   - `ggpubr` — combined-panel plotting in `02_distribute_population.R`
   - `tmap` — thematic mapping in `01_calculate_workplaces.R`
   - `sf`, `terra` — spatial/raster data handling
@@ -73,8 +76,10 @@ Origin–destination pairs classified by PT/car travel time ratio (`09_OD_compar
     `11_validate_od_flows.R`
   - `corrplot`, `car` — correlation matrix and VIF diagnostics in
     `10_regression_analysis.R`
-  - `spatialreg` — SAR/SEM/Spatial Durbin Model in
+  - `spatialreg` — SEM/Spatial Durbin Model in
     `12_spatial_regression_comparison.R` (in addition to `spdep`, already listed above)
+  - `GWmodel` — geographically weighted regression in `13_gwr_analysis.R`
+    (and, optionally, `gwr_robustness_check.R`)
 
 > **Note:** fill in exact package versions (e.g. via `renv::snapshot()` or
 > a `sessionInfo()` dump) once the pipeline is stable, so results are
@@ -128,19 +133,20 @@ scripts/
 ├── 09_OD_comparison.R
 ├── 10_regression_analysis.R
 ├── 11_validate_od_flows.R
-├── 11b_town_rural_validation_chart.R
-├── 11c_validation_ratio_map.R
 ├── 12_spatial_regression_comparison.R
+├── 13_gwr_analysis.R
+├── gwr_robustness_check.R  <- optional, ~9hr, NOT run by 00_run_pipeline.R -- see its own header
 ├── lisa_priority_utils.R   <- shared LISA/priority-typology helpers, sourced by 08 and 10
 └── od_pair_utils.R         <- shared OD-pair-comparison helper, sourced by 06, 07, 09 and 10
 Data/            <- input and intermediate data (see "Data availability")
 Figures/         <- output PNGs written by ggsave() calls (e.g. Fig_PT_vs_car_travels.png)
 ```
 
-Filenames are zero-padded (`01`–`12`) so a plain alphabetical listing (file
+Filenames are zero-padded (`01`–`13`) so a plain alphabetical listing (file
 browsers, `ls`, GitHub's file view) sorts in actual execution order — a
-one-digit `1_...` would otherwise sort after `10_...`/`11_...`/`12_...` as
-plain text.
+one-digit `1_...` would otherwise sort after `10_...`/`11_...`/`12_...`/`13_...` as
+plain text. `gwr_robustness_check.R` deliberately has no number prefix — it's
+not a pipeline step, see "Repository structure" above.
 
 > **2026-07-27: former scripts 06 and 07 were merged** into
 > `06_travel_ratio_analysis.R` — `itineraries_weights.csv` (old 06's only
@@ -150,6 +156,23 @@ plain text.
 > (old 08→07, 09→08, 10→09, 11→10, 12→11, 13→12). If you have local
 > notes, scripts, or a `renv`/CI config referencing the old numbering,
 > they'll need updating too.
+
+> **2026-08-20: `11b_town_rural_validation_chart.R` and
+> `11c_validation_ratio_map.R` removed.** Both were exploratory figures
+> (town/rural under-prediction slope chart; a municipality-level ratio
+> choropleth) never referenced in the manuscript — the user explicitly
+> declined including the town/rural chart (it reads as highlighting a
+> census-vs-synthetic discrepancy more starkly than the manuscript's prose
+> does) and the ratio map was left as an unintegrated draft. Their output
+> PNGs (`Fig_od_validation_town_rural.png`, `Fig_od_validation_ratio_map.png`)
+> were also deleted as orphaned outputs. **`13_gwr_analysis.R` added** the
+> same day — geographically weighted regression on the same origin-level
+> model as step 12, reporting one manuscript-reported finding (departure
+> frequency's spatially-varying local coefficient). See its own header
+> comment for the full methodological rationale (why classic GWR and not
+> multiscale, why only one predictor gets mapped) and
+> `gwr_robustness_check.R` (not part of the numbered pipeline, ~9hr runtime)
+> for the validation methodology behind that choice.
 
 > Adjust the tree above to match your actual folder layout, and confirm
 > the `Data/`/`Output/` paths scripts read from and write to.
@@ -161,7 +184,7 @@ repo root, a thin wrapper around it) runs every step in order in one go, each
 in its own fresh `Rscript` process. It skips the expensive, one-time phase A
 (steps 01-05: grids + r5r routing + itinerary consolidation) automatically if
 `itineraries_results.rds`/`pt_itineraries.rds`/`car_itineraries.rds` already
-exist in `Data/`, and always runs phase B (steps 06-12, the actual analysis
+exist in `Data/`, and always runs phase B (steps 06-13, the actual analysis
 outputs) fresh. Pass `--force` (`-Force` for the `.ps1`) to redo phase A from
 scratch too -- step 04 alone can take hours, so only do this deliberately.
 Prints a PASS/FAIL/SKIPPED summary with per-step timings at the end. See the
@@ -188,7 +211,8 @@ a `REQUIRES TO RUN:` header comment, alongside every upstream `.rds`/
 02 ─┘             ├─→ 07
                    ├─→ 08
                    ├─→ 09
-                   ├─→ 10 → 12
+                   ├─→ 10 ─┬─→ 12
+                   │        └─→ 13
                    └─→ 11
 03 (diagnostic, reads outputs of 01 & 02, not required by 04)
 
@@ -205,6 +229,12 @@ flows).
 
 12 reads only regression_data.csv (step 10's output) -- no other inputs --
 so it can be re-run on its own once 10 has produced that file.
+
+13 also reads only regression_data.csv (same as 12, independently -- it
+does not depend on 12's output) plus poz.gpkg for the map's city-boundary
+outline. gwr_robustness_check.R (no number prefix, not run by
+00_run_pipeline.R) has the same inputs; see its header comment for why it's
+kept separate.
 ```
 
 Note that **03 is not on the critical path to 04** — routing in step 04
@@ -276,22 +306,26 @@ has run at least once.
     `od_validation_beta_sensitivity.csv`,
     `Figures/Fig_od_validation_scatter.png`,
     `Figures/Fig_od_validation_share_by_municipality.png`*
-11b. **`11b_town_rural_validation_chart.R`** — Paired slope chart of the
-    town/rural under-prediction asymmetry from step 11's output.
-    *Output: `Figures/Fig_od_validation_town_rural.png`*
-11c. **`11c_validation_ratio_map.R`** — Municipality-level choropleth of
-    the same ratio, all 24 matched municipalities. Exploratory, not
-    referenced in the manuscript.
-    *Output: `Figures/Fig_od_validation_ratio_map.png`*
-12. **`12_spatial_regression_comparison.R`** — Fits OLS/SAR/SEM/SDM on the
+12. **`12_spatial_regression_comparison.R`** — Fits OLS/SEM/SDM on the
     origin-level PT/car ratio, runs LM/LR tests to justify the spatial
     specification, and reports the SDM effect decomposition.
     *Output: `spatial_regression_comparison.csv`, `spatial_dependence_tests.csv`,
     `sdm_impacts.csv`, `regression_vif.csv`*
+13. **`13_gwr_analysis.R`** — Fits geographically weighted regression
+    (adaptive bisquare kernel, AIC-selected bandwidth) on the same
+    origin-level model as step 12, testing whether predictors' effects
+    vary spatially rather than holding globally. Saves local coefficients
+    for all nine predictors, but only maps departure frequency — the one
+    predictor that is both significant in the SDM (step 12) and
+    directly actionable by planners, and whose local coefficients passed
+    a robustness check against an independent estimator (see
+    `gwr_robustness_check.R`, not part of the normal pipeline).
+    *Output: `gwr_local_coefficients.csv`,
+    `Figures/Fig_GWR_departures_local_coef.png`*
 
-Steps 06–12 are exploratory/analytical and can be run independently once
+Steps 06–13 are exploratory/analytical and can be run independently once
 step 05 has produced its output (for 06, 07, 08, 09, 10, 11), or step 10
-(for 12) has produced `regression_data.csv`.
+(for 12, 13) has produced `regression_data.csv`.
 
 ## Citation
 
