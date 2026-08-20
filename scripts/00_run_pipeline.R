@@ -2,7 +2,7 @@
 # 00_run_pipeline.R
 #
 # Runs the full MobilityPatterns pipeline end-to-end in one execution, in
-# dependency order (01-12, which already matches the dependency graph in
+# dependency order (01-13, which already matches the dependency graph in
 # README.md -- see "Dependency graph" section there). Each step runs in its
 # own fresh Rscript process rather than being source()'d into this session:
 # the pipeline is explicitly file-based, not session-based (every script
