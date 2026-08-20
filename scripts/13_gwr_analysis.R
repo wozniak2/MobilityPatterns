@@ -109,9 +109,16 @@ origin_data <- regression_data %>%
 
 cat("Origin zones for GWR:", nrow(origin_data), "\n")
 
+# CRS note: fit in EPSG:2180 (metres), not raw WGS84 lon/lat -- GWR's
+# adaptive bandwidth search ranks neighbours by Euclidean distance, which
+# is meaningless in degrees at this latitude (uncorrected lon/lat gave a
+# materially different, wrong bandwidth when this was tried and caught
+# during testing, 2026-08-20). origin_sf keeps WGS84 (for the map's
+# coord_sf(crs=4326) and the lon/lat columns) separately from origin_sp
+# (projected, for the actual model fit).
 origin_sf <- origin_data %>%
   st_as_sf(coords = c("from_lon", "from_lat"), crs = 4326, remove = FALSE)
-origin_sp <- as(origin_sf, "Spatial")
+origin_sp <- origin_sf %>% st_transform(2180) %>% as("Spatial")
 
 # ── Bandwidth: re-derive via AIC search rather than hardcoding 501, so this
 # script stays correct if regression_data.csv is ever regenerated with a
