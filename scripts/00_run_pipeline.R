@@ -54,7 +54,8 @@ phase_b_steps <- c(
   "09_OD_comparison.R",
   "10_regression_analysis.R",
   "11_validate_od_flows.R",
-  "12_spatial_regression_comparison.R"
+  "12_spatial_regression_comparison.R",
+  "13_gwr_analysis.R"
 )
 
 phase_a_markers <- file.path(DATA_DIR, c(
@@ -80,9 +81,9 @@ regression_data_csv <- file.path(DATA_DIR, "regression_data.csv")
 for (step_file in run_list) {
   label <- paste0("Step ", substr(step_file, 1, 2), ": ", step_file)
 
-  # 12 aggregates step 10's output -- if 10 didn't produce it (e.g. it
-  # failed), there's no point trying to run 12 at all.
-  if (step_file == "12_spatial_regression_comparison.R" &&
+  # 12 and 13 both aggregate step 10's output -- if 10 didn't produce it
+  # (e.g. it failed), there's no point trying to run either at all.
+  if (step_file %in% c("12_spatial_regression_comparison.R", "13_gwr_analysis.R") &&
       !file.exists(regression_data_csv)) {
     cat("\n", label, "\n", sep = "")
     cat("SKIPPED -- required input missing:", regression_data_csv, "\n")
