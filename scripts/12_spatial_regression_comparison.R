@@ -12,22 +12,31 @@
 #      their robust versions) to diagnose whether the data supports a
 #      spatial LAG process, a spatial ERROR process, or both, before
 #      committing to a specification.
-#   2. Fit the three nested spatial regressions this points to: SAR (lag
-#      only), SEM (error only), and SDM (Durbin -- lag + spatially lagged
-#      predictors, nests SAR when the lagged-X coefficients are zero, and
-#      nests SEM under the "common factor" restriction).
-#   3. Likelihood-ratio test SDM against SAR and SEM to confirm the extra
-#      Durbin complexity is actually justified rather than assumed.
-#   4. Compare all four (OLS, SAR, SEM, SDM) on AIC, pseudo-R^2, and
-#      residual Moran's I, and report the SDM effect decomposition.
+#   2. Fit the two nested spatial regressions this points to: SEM (error
+#      only) and SDM (Durbin -- lag + spatially lagged predictors, nests
+#      SEM under the "common factor" restriction).
+#   3. Likelihood-ratio test SDM against SEM to confirm the extra Durbin
+#      complexity is actually justified rather than assumed.
+#   4. Compare all three (OLS, SEM, SDM) on AIC, pseudo-R^2, and residual
+#      Moran's I, and report the SDM effect decomposition.
 #
-# NOTE (2026-07-28): a GWR (geographically weighted regression) fit and its
-# two figures were removed from this script -- GWR was never part of what
-# this study actually estimates (only OLS/SAR/SEM/SDM are), and keeping code
-# for a model that isn't reported was more confusing than useful. If GWR's
-# local coefficient maps are ever wanted again for RQ3-style "which zones
-# need which intervention" exploration, `GWmodel::bw.gwr()` +
-# `GWmodel::gwr.basic()` on `model_formula` (below) is where it was.
+# NOTE (2026-08-20): SAR (spatial lag only) was removed from this script --
+# it was already excluded from the manuscript's results table back on
+# 2026-07-28 (dominated by SEM: AIC 362.55 vs. 26.27, residual Moran's I
+# 0.161 vs. 0.050) but was still being formally fitted and LR-tested here,
+# which had drifted out of sync with the manuscript's Methods text (which
+# now explicitly says "two nested spatial specifications were estimated").
+# The LM tests for a lag process (step 1 above) are unaffected -- they're
+# a diagnostic on OLS residuals, not dependent on SAR itself being fit.
+#
+# NOTE (2026-07-28, GWR removed; 2026-08-20, GWR is back, differently): a
+# GWR fit and its two figures were removed from this script on 2026-07-28
+# because GWR wasn't part of what the study reported at the time. GWR is
+# back as of 2026-08-20, but as its own separate script,
+# `13_gwr_analysis.R` -- not revived here. It answers a different question
+# (does a predictor's effect vary spatially) than this script's OLS/SEM/SDM
+# comparison (does spatial dependence exist, and how is it structured), so
+# it was kept separate rather than folded back into this one.
 #
 # DESIGN CHOICE: regression_data.csv is one row per OD pair, but these
 # models need one observation per spatial location. Rows are aggregated to
@@ -57,8 +66,8 @@
 #
 # INPUT  : regression_data.csv (from 10_regression_analysis.R, must include
 #          from_lon/from_lat)
-# OUTPUT : spatial_regression_comparison.csv -- AIC/pseudo-R2/Moran's I, all 4 models
-#          spatial_dependence_tests.csv      -- LM tests (OLS) + LR tests (SDM vs SAR/SEM)
+# OUTPUT : spatial_regression_comparison.csv -- AIC/pseudo-R2/Moran's I, all 3 models
+#          spatial_dependence_tests.csv      -- LM tests (OLS) + LR test (SDM vs SEM)
 #          sdm_impacts.csv                   -- SDM direct/indirect/total effects + p-values
 #          regression_vif.csv                -- VIF on the reported origin-level OLS model
 # =============================================================================
@@ -218,15 +227,7 @@ lm_tests_df <- do.call(rbind, lapply(names(lm_tests), function(nm) {
              p_value = ht$p.value)
 }))
 
-# ── 4. Spatial Autoregressive (lag) model ─────────────────────────────────────
-sar_model <- lagsarlm(model_formula, data = origin_data, listw = lw, type = "lag")
-cat("\n--- SAR (spatial lag) ---\n")
-print(summary(sar_model))
-
-cat("\nMoran's I on SAR residuals:\n")
-print(moran.test(residuals(sar_model), lw))
-
-# ── 5. Spatial Error Model ────────────────────────────────────────────────────
+# ── 4. Spatial Error Model ────────────────────────────────────────────────────
 sem_model <- errorsarlm(model_formula, data = origin_data, listw = lw)
 cat("\n--- SEM (spatial error) ---\n")
 print(summary(sem_model))
@@ -234,7 +235,7 @@ print(summary(sem_model))
 cat("\nMoran's I on SEM residuals:\n")
 print(moran.test(residuals(sem_model), lw))
 
-# ── 6. Spatial Durbin Model ────────────────────────────────────────────────────
+# ── 5. Spatial Durbin Model ────────────────────────────────────────────────────
 sdm_model <- lagsarlm(model_formula, data = origin_data, listw = lw, type = "Durbin")
 cat("\n--- Spatial Durbin Model ---\n")
 print(summary(sdm_model))
@@ -242,9 +243,7 @@ print(summary(sdm_model))
 cat("\nMoran's I on SDM residuals:\n")
 print(moran.test(residuals(sdm_model), lw))
 
-# ── 7. Likelihood-ratio tests: is the extra Durbin complexity justified? ─────
-# SDM vs SAR: tests whether the spatially-lagged-X coefficients are jointly
-# zero (if so, the simpler SAR is preferred).
+# ── 6. Likelihood-ratio test: is the extra Durbin complexity justified? ─────
 # SDM vs SEM: the "common factor" test (theta = -rho*beta); if it fails to
 # reject, the simpler SEM is preferred.
 #
@@ -252,7 +251,7 @@ print(moran.test(residuals(sdm_model), lw))
 # that function's availability/name has shifted across spatialreg versions
 # (some versions only expose the test via anova(model1, model2)). logLik()
 # is a base S3 method that already works here -- it's what AIC() uses
-# internally, and AIC() already succeeded on all three models above.
+# internally, and AIC() already succeeded on both models above.
 lr_test_manual <- function(model_full, model_reduced, label) {
   ll_full    <- as.numeric(logLik(model_full))
   ll_reduced <- as.numeric(logLik(model_reduced))
@@ -269,21 +268,16 @@ lr_test_manual <- function(model_full, model_reduced, label) {
   data.frame(type = "LR", test = label, statistic = statistic, df = df, p_value = p_value)
 }
 
-cat("\nLR test: SDM vs. SAR (are the spatially-lagged predictors needed?):\n")
-lr_sdm_sar_df <- lr_test_manual(sdm_model, sar_model, "SDM_vs_SAR")
-
 cat("\nLR test: SDM vs. SEM (common factor test):\n")
 lr_sdm_sem_df <- lr_test_manual(sdm_model, sem_model, "SDM_vs_SEM")
 
-lr_tests_df <- rbind(lr_sdm_sar_df, lr_sdm_sem_df)
+write.csv(rbind(lm_tests_df, lr_sdm_sem_df), "spatial_dependence_tests.csv", row.names = FALSE)
 
-write.csv(rbind(lm_tests_df, lr_tests_df), "spatial_dependence_tests.csv", row.names = FALSE)
-
-# ── 8. SDM impact decomposition (direct/indirect/total effects) ──────────────
-# The main reason to prefer SDM over SAR/SEM for planning implications
-# (RQ3), if the LR tests above support it: does improving PT at one origin
-# measurably help its neighbours, or is the effect purely local? SAR/SEM
-# don't decompose spillovers this way.
+# ── 7. SDM impact decomposition (direct/indirect/total effects) ──────────────
+# The main reason to prefer SDM over SEM for planning implications (RQ3),
+# if the LR test above supports it: does improving PT at one origin
+# measurably help its neighbours, or is the effect purely local? SEM
+# doesn't decompose spillovers this way.
 cat("\nSDM impact decomposition (direct/indirect/total effects):\n")
 sdm_impacts <- impacts(sdm_model, listw = lw, R = 500)
 sdm_impacts_summary <- summary(sdm_impacts, zstats = TRUE)
@@ -314,15 +308,14 @@ sdm_impacts_df <- data.frame(
 )
 write.csv(sdm_impacts_df, "sdm_impacts.csv", row.names = FALSE)
 
-# ── 9. Model comparison: OLS vs. SAR vs. SEM vs. SDM ─────────────────────────
+# ── 8. Model comparison: OLS vs. SEM vs. SDM ─────────────────────────────────
 pseudo_r2 <- function(observed, fitted) cor(observed, fitted, use = "complete.obs")^2
 
 comparison <- data.frame(
-  model = c("OLS", "SAR (lag)", "SEM (error)", "SDM (Durbin)"),
-  aic = c(AIC(ols_model), AIC(sar_model), AIC(sem_model), AIC(sdm_model)),
+  model = c("OLS", "SEM (error)", "SDM (Durbin)"),
+  aic = c(AIC(ols_model), AIC(sem_model), AIC(sdm_model)),
   pseudo_r2 = c(
     pseudo_r2(origin_data$tt_ratio, fitted(ols_model)),
-    pseudo_r2(origin_data$tt_ratio, sar_model$fitted.values),
     pseudo_r2(origin_data$tt_ratio, sem_model$fitted.values),
     pseudo_r2(origin_data$tt_ratio, sdm_model$fitted.values)
   ),
@@ -332,13 +325,12 @@ comparison <- data.frame(
   # not a difference in what's being reported. Both put it first in $estimate.
   moran_i_residuals = c(
     lm.morantest(ols_model, lw)$estimate[[1]],
-    moran.test(residuals(sar_model), lw)$estimate[[1]],
     moran.test(residuals(sem_model), lw)$estimate[[1]],
     moran.test(residuals(sdm_model), lw)$estimate[[1]]
   )
 )
 
-cat("\n--- Model comparison: OLS vs. SAR vs. SEM vs. SDM ---\n")
+cat("\n--- Model comparison: OLS vs. SEM vs. SDM ---\n")
 print(comparison)
 write.csv(comparison, "spatial_regression_comparison.csv", row.names = FALSE)
 
