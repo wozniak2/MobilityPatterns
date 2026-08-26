@@ -294,20 +294,53 @@ cat(sprintf(
 print(od_cor)
 
 # ── 9. Scatter plot (relationship check) ──────────────────────────────────────
+# Dark theme (background #1a1a1a, white text/gridlines) added 2026-08-26 to
+# match the rest of the manuscript's dark-themed figures. Trend-line colour
+# (#FDE725) is the same "higher-value" viridis stop used as the shared
+# accent in Figures 3/7 (07_plot_itineraries.R, 06_travel_ratio_analysis.R)
+# for cross-figure coherence; points recoloured to the shared purple.
+#
+# Enhanced further, same session: a shaded 95% CI band (se = TRUE, was
+# FALSE) and an in-plot rho/R^2 annotation, recomputed here directly from
+# `matched` rather than hardcoded so it can't drift from the real numbers.
+# GOTCHA: annotate(x = -Inf, y = Inf, ...) -- the usual "top-left corner"
+# trick -- does NOT work on log-scaled axes: scale_x_log10()'s transform
+# computes log10(-Inf), which is NaN in R (unlike a linear scale, where
+# Inf/-Inf pass through untransformed), so the label silently vanishes
+# (geom_text warns "Removed 1 row containing missing values" -- easy to
+# miss). Fixed by computing a real position from the data's own log-range.
+rho_val <- cor.test(matched$synthetic_volume, matched$commuters, method = "spearman")$estimate
+r2_val  <- summary(lm(log(commuters) ~ log(synthetic_volume), data = matched))$r.squared
+
+xr <- range(log10(matched$commuters))
+yr <- range(log10(matched$synthetic_volume))
+label_x <- 10^(xr[1] + 0.02 * diff(xr))
+label_y <- 10^(yr[1] + 0.97 * diff(yr))
+
 ggplot(matched, aes(x = commuters, y = synthetic_volume)) +
-  geom_point(size = 2.5, alpha = 0.7) +
-  geom_smooth(method = "lm", se = FALSE, colour = "#c0392b") +
+  geom_smooth(method = "lm", se = TRUE, colour = "#FDE725", fill = "white",
+              alpha = 0.15, linewidth = 1) +
+  geom_point(shape = 21, size = 3.2, colour = "white", fill = "#9B59B6",
+             stroke = 0.4, alpha = 0.9) +
+  annotate("text", x = label_x, y = label_y,
+           label = sprintf("atop(rho[s] == %.3f, R^2 == %.3f)", rho_val, r2_val),
+           parse = TRUE, colour = "white", size = 5.2, hjust = 0, vjust = 1) +
   scale_x_log10() +
   scale_y_log10() +
   labs(
     x = "Census commuters (log scale)",
     y = "Synthetic volume proxy (log scale)"
   ) +
-  theme_minimal(base_size = 17) +
+  theme_dark(base_size = 17) +
   theme(
-    axis.title    = element_text(size = 19),
-    axis.text     = element_text(size = 18),
-    plot.margin   = margin(t = 10, r = 15, b = 10, l = 10)
+    panel.background  = element_rect(fill = "#1a1a1a"),
+    plot.background   = element_rect(fill = "#1a1a1a", colour = NA),
+    text              = element_text(color = "white"),
+    axis.title        = element_text(size = 19, color = "white"),
+    axis.text         = element_text(size = 18, color = "white"),
+    panel.grid.major  = element_line(colour = "grey30"),
+    panel.grid.minor  = element_blank(),
+    plot.margin       = margin(t = 10, r = 15, b = 10, l = 10)
   )
 
 ggsave("../Figures/Fig_od_validation_scatter.png", width = 8, height = 6, dpi = 300)
@@ -331,18 +364,30 @@ plot_data <- matched %>%
                           synthetic_share = synthetic_label,
                           census_share    = "Census"))
 
+# Dark theme + shared viridis palette, same rationale as the scatter plot
+# above: Census (the reference/ground truth, matching Car's and rail's role
+# in Figures 3/7) gets the purple stop; Synthetic proxy (the model construct
+# under evaluation, matching PT's and no-rail's role) gets yellow.
 ggplot(plot_data, aes(x = reorder(home_municipality, share), y = share, fill = source)) +
   geom_col(position = "dodge") +
   coord_flip() +
   scale_y_continuous(labels = percent) +
+  scale_fill_manual(values = c(Census = "#9B59B6", "Synthetic proxy" = "#FDE725")) +
   labs(
     x = NULL, y = NULL, fill = NULL
   ) +
-  theme_minimal(base_size = 16) +
+  theme_dark(base_size = 16) +
   theme(
-    axis.text     = element_text(size = 15),
-    legend.text   = element_text(size = 16),
-    legend.position = "top"
+    panel.background  = element_rect(fill = "#1a1a1a"),
+    plot.background   = element_rect(fill = "#1a1a1a", colour = NA),
+    legend.background = element_rect(fill = "#1a1a1a"),
+    legend.key        = element_rect(fill = "#1a1a1a"),
+    text              = element_text(color = "white"),
+    axis.text         = element_text(size = 15, color = "white"),
+    legend.text       = element_text(size = 16, color = "white"),
+    legend.position   = "top",
+    panel.grid.major  = element_line(colour = "grey30"),
+    panel.grid.minor  = element_blank()
   )
 
 ggsave("../Figures/Fig_od_validation_share_by_municipality.png", width = 8, height = 8.5, dpi = 300)

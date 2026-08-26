@@ -67,6 +67,8 @@ suppressMessages({
   library(sf)
   library(GWmodel)
   library(ggplot2)
+  library(maptiles)
+  library(tidyterra)
 })
 
 setwd("C:/Users/wozni/Google Drive/UAM/HUB/MobilityPatterns/Data")
@@ -167,11 +169,25 @@ poz <- st_read("poz.gpkg", quiet = TRUE)
 poz_wgs <- st_transform(poz, 4326)
 origin_sf$gwr_dep_coef <- sdf[["daily_departures"]]
 
+# Basemap added 2026-08-26, same CartoDB.DarkMatter recipe as
+# 09_OD_comparison.R's Fig_PT_vs_car_travels (Figure 5) -- gives this point
+# map real geographic context instead of floating on a flat black panel.
+map_limits_gwr <- st_bbox(origin_sf)
+bbox_gwr <- origin_sf %>%
+  st_bbox() %>%
+  st_as_sfc() %>%
+  st_buffer(0.02) %>%
+  st_transform(3857)
+osm_map_gwr <- get_tiles(bbox_gwr, provider = "CartoDB.DarkMatter",
+                          zoom = 11, crop = TRUE)
+
 p <- ggplot() +
+  geom_spatraster_rgb(data = osm_map_gwr, alpha = 0.9) +
   geom_sf(data = origin_sf, aes(colour = gwr_dep_coef), size = 1.1, alpha = 0.85) +
   geom_sf(data = poz_wgs, fill = NA, colour = "white", linewidth = 0.4, inherit.aes = FALSE) +
   scale_colour_viridis_c(name = "Local GWR\ncoefficient") +
-  coord_sf(crs = 4326) +
+  coord_sf(crs = 4326, xlim = map_limits_gwr[c("xmin", "xmax")],
+           ylim = map_limits_gwr[c("ymin", "ymax")]) +
   theme_dark(base_size = 18) +
   theme(
     panel.background  = element_rect(fill = "#1a1a1a"),
@@ -187,8 +203,8 @@ p <- ggplot() +
     legend.text       = element_text(size = 15, color = "white"),
     panel.grid.major  = element_blank(),
     panel.grid.minor  = element_blank(),
-    panel.border      = element_blank(),
-    plot.margin       = margin(0, 0, 0, 0)
+    panel.border      = element_blank()
+#    plot.margin       = margin(0, 0, 0, 0)
   )
 
 dir.create("../Figures", showWarnings = FALSE)

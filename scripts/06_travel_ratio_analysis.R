@@ -185,24 +185,40 @@ ggsave("../Figures/Fig_travelratio_density_norail.png", width = 8, height = 6, d
 cat("Saved Figures/Fig_travelratio_density_norail.png\n")
 
 #Rail vs. other
+# Dark theme (background #1a1a1a, white text/gridlines) added 2026-08-26 to
+# match Figure 3's boxplots and the rest of the manuscript's dark-themed
+# figures -- this pair (Figure 7) was still on theme_minimal().
 ggplot(w_ratio_combined,
        aes(x = weighted_ratio,
            y = ..density..,
            weight = working_age_pop,
            colour = rail,
            fill = rail)) +
-  geom_histogram(position = "identity", alpha = 0.5) +
+  geom_histogram(position = "identity", alpha = 0.65, linewidth = 0.6) +
+  # Viridis stops shared with Figure 3's Car/PT palette (07_plot_itineraries.R)
+  # for cross-figure coherence: rail has the lower (better) ratio, so it gets
+  # the cooler low-value viridis stop; no-rail's higher ratio gets the warmer
+  # high-value stop -- same convention as duration/distance there.
+  scale_colour_manual(values = c(rail = "#9B59B6", "no rail" = "#FDE725")) +
+  scale_fill_manual(values = c(rail = "#9B59B6", "no rail" = "#FDE725")) +
   labs(
     x = "Workplace-weighted PT/car travel-time ratio (per origin)",
     y = "Density (weighted by working-age population)",
     colour = NULL, fill = NULL
   ) +
-  theme_minimal(base_size = 18) +
+  theme_dark(base_size = 18) +
   theme(
-    axis.title  = element_text(size = 19),
-    axis.text   = element_text(size = 18),
-    legend.text = element_text(size = 18),
-    legend.position = "top"
+    panel.background  = element_rect(fill = "#1a1a1a"),
+    plot.background   = element_rect(fill = "#1a1a1a", colour = NA),
+    legend.background = element_rect(fill = "#1a1a1a"),
+    legend.key        = element_rect(fill = "#1a1a1a"),
+    text              = element_text(color = "white"),
+    axis.title        = element_text(size = 19, color = "white"),
+    axis.text         = element_text(size = 18, color = "white"),
+    legend.text       = element_text(size = 18, color = "white"),
+    legend.position   = "top",
+    panel.grid.major  = element_line(colour = "grey30"),
+    panel.grid.minor  = element_blank()
   )
 
 ggsave("../Figures/Fig_travelratio_density_rail_vs_norail.png", width = 8, height = 6, dpi = 300)
@@ -227,21 +243,30 @@ ggsave("../Figures/Fig_travelratio_cumulative_population.png", width = 8, height
 cat("Saved Figures/Fig_travelratio_cumulative_population.png\n")
 
 #Rail vs. no rail
+# Dark theme, same rationale/palette as the histogram above.
 ggplot(w_ratio_combined, aes(x = weighted_ratio, y = sum_pop/working_age_pop_sum, colour = rail)) +
-  geom_line(linewidth = 1) +
+  geom_line(linewidth = 1.4) +
   expand_limits(x = 0, y = 0) +
   scale_y_continuous(labels = scales::percent) +
+  scale_colour_manual(values = c(rail = "#9B59B6", "no rail" = "#FDE725")) +
   labs(
     x = "Workplace-weighted PT/car travel-time ratio (per origin)",
     y = "Cumulative share of working-age population",
     colour = NULL
   ) +
-  theme_minimal(base_size = 18) +
+  theme_dark(base_size = 18) +
   theme(
-    axis.title  = element_text(size = 19),
-    axis.text   = element_text(size = 18),
-    legend.text = element_text(size = 18),
-    legend.position = "top"
+    panel.background  = element_rect(fill = "#1a1a1a"),
+    plot.background   = element_rect(fill = "#1a1a1a", colour = NA),
+    legend.background = element_rect(fill = "#1a1a1a"),
+    legend.key        = element_rect(fill = "#1a1a1a"),
+    text              = element_text(color = "white"),
+    axis.title        = element_text(size = 19, color = "white"),
+    axis.text         = element_text(size = 18, color = "white"),
+    legend.text       = element_text(size = 18, color = "white"),
+    legend.position   = "top",
+    panel.grid.major  = element_line(colour = "grey30"),
+    panel.grid.minor  = element_blank()
   )
 
 ggsave("../Figures/Fig_travelratio_cumulative_population_rail_vs_norail.png", width = 8, height = 6, dpi = 300)
