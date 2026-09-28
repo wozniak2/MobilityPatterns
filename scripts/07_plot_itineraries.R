@@ -104,7 +104,7 @@ pt_iti <- ggplot(df_plot_pt) +
   geom_raster(aes(x = x, y = y, fill = log1p(freq)), alpha = 0.82) +
   # Legend titled "PT frequency" (not "log1p(freq)") -- the log transform is
   # already disclosed in the figure caption, no need to clutter the legend.
-  scale_fill_viridis_c(option = "viridis", na.value = "black", name = "PT frequency") +
+  scale_fill_viridis_c(option = "viridis", na.value = "black", name = "PT density") +
   coord_equal(expand = FALSE) +
   geom_sf(data = poz_3857, fill = NA, colour = "white",
           linewidth = 0.6, inherit.aes = FALSE) +
@@ -138,7 +138,7 @@ pt_iti <- ggplot(df_plot_pt) +
 car_iti <- ggplot(df_plot_car) +
   geom_spatraster_rgb(data = osm_map, alpha = 0.9) +
   geom_raster(aes(x = x, y = y, fill = log1p(freq)), alpha = 0.82) +
-  scale_fill_viridis_c(option = "viridis", na.value = "black", name = "Car frequency") +
+  scale_fill_viridis_c(option = "viridis", na.value = "black", name = "Car density") +
   coord_equal(expand = FALSE) +
   geom_sf(data = poz_3857, fill = NA, colour = "white",
           linewidth = 0.6, inherit.aes = FALSE) +
@@ -243,7 +243,7 @@ duration_long <- od_summary %>%
 ggplot(duration_long, aes(x = mode, y = duration_min, fill = mode)) +
   geom_boxplot(colour = "white", outlier.shape = 21, outlier.colour = "white",
                outlier.fill = "grey70", outlier.stroke = 0.3,
-               outlier.alpha = 0.35, linewidth = 0.5) +
+               outlier.alpha = 0.35, linewidth = 0.5, alpha = 0.8) +
   # Viridis stops, shared with Figure 7's rail/no-rail palette (06_travel_ratio_analysis.R)
   # for cross-figure coherence: the lower/faster category gets the cooler
   # (low-value) viridis stop, the higher/slower category the warmer
@@ -273,7 +273,7 @@ distance_long <- od_summary %>%
 ggplot(distance_long, aes(x = mode, y = distance_m, fill = mode)) +
   geom_boxplot(colour = "white", outlier.shape = 21, outlier.colour = "white",
                outlier.fill = "grey70", outlier.stroke = 0.3,
-               outlier.alpha = 0.35, linewidth = 0.5) +
+               outlier.alpha = 0.35, linewidth = 0.5, alpha = 0.8) +
   scale_fill_manual(values = c(Car = "#9B59B6", PT = "#FDE725")) +
   labs(x = NULL, y = "Distance (m)") +
   theme_dark(base_size = 18) +

@@ -87,6 +87,23 @@ Origin–destination pairs classified by PT/car travel time ratio (`09_OD_compar
 > servers (`osmdata`, `maptiles`) are not reproducible offline and depend
 > on those services' availability.
 
+> **2026-08-28: CARTO's free basemap tiles now require an API key.**
+> `get_tiles(provider = "CartoDB.DarkMatter", ...)` (used by Figs 3/5/8 —
+> `07_plot_itineraries.R`, `09_OD_comparison.R`, `13_gwr_analysis.R`) now
+> returns a watermarked "API KEY REQUIRED" tile for anonymous requests —
+> confirmed this is CARTO-side (identical `maptiles` call, `OpenStreetMap`
+> tiles fetch fine with no key). Not yet an issue for the already-saved
+> figure PNGs, but **regenerating any of those three scripts' maps will
+> come out watermarked** until either a free key
+> (carto.com/basemaps/apikey) is obtained and passed via
+> `get_tiles(apikey = ...)`, or they're switched to the inverted-Esri-
+> grey-canvas-plus-Overpass-roads recipe `08_analyse_itineraries.R` and
+> `06_travel_ratio_analysis.R`'s Part 3 already use instead (no key
+> required — see note below). Separately, the Overpass roads half of that
+> recipe is itself flaky on the public API (intermittent 502/504s,
+> unrelated to the CARTO issue) — both scripts already retry once against
+> a mirror and fall back to no roads layer rather than failing.
+
 ## Data availability
 
 - **BDOT10k** — Polish national topographic database; access terms TBD
@@ -174,6 +191,57 @@ not a pipeline step, see "Repository structure" above.
 > `gwr_robustness_check.R` (not part of the numbered pipeline, ~9hr runtime)
 > for the validation methodology behind that choice.
 
+> **2026-08-28: `06_travel_ratio_analysis.R` gained a Part 3** — a
+> restyled reconstruction of a Google-Drive-only exploratory script
+> (`explore_travel_ratios.R`, predates the 2026-07-27 merge that created
+> this file) mapping the 30 top ZTM bus/tram routes carrying the most-,
+> moderately-, and least-competitive PT itineraries (same weighting and
+> `< 1.5` / `1.5–2.5` / `>= 2.5` time-ratio bands as the existing
+> `competitive`/`improvement` municipality tables just above it). New
+> inputs for this script: `ap.gpkg`, `gtfs/ztm.zip`,
+> `itineraries_weights_route_detail.csv` (see below). New output:
+> `Figures/Fig_travelratio_route_competitiveness.png`.
+>
+> **Data source (final, 2026-08-31)**: the original script's `route`/`mode`
+> single-string-per-itinerary columns don't exist in the current pipeline's
+> own `itineraries_weights.csv`. A first attempt reconstructed them from
+> `pt_itineraries.rds`'s segment-level data — ran fine, but produced a
+> visibly different route selection than the user's reference screenshot
+> (a wrong-source-data bug, not a styling one), since it was necessarily
+> built from a different, more recent itinerary run. The actual original
+> `itineraries_weights.csv` (688,297 rows, one row per itinerary,
+> `route`/`mode` comma-joined per segment) was recovered from
+> `~/Downloads/` and copied in as `itineraries_weights_route_detail.csv`,
+> used only by this Part 3. **Validated** by re-running the original
+> script's own logic verbatim (`tmap`, `ap.gpkg`, no crop) against the
+> recovered file — closely reproduced the reference screenshot in all
+> three bands, confirming the fix. **A second, separate bug then surfaced**:
+> even with the correct data, the dark-restyled figure's routes still
+> didn't match the replication, because `slice_max(n=30)` was being taken
+> on the raw exploded route-token table *before* joining to real GTFS
+> shapes / filtering to the ROI, not after — the original script's order
+> is join → ROI-filter → drop non-matches → *then* rank. Placeholder
+> tokens ("0" for WALK legs, present in nearly every itinerary; "KW"/"IC"
+> for rail, no shape in `ztm.zip`) have huge cumulative weight purely from
+> ubiquity, so ranking first let them occupy top-30 slots a real route
+> should have had. Fixed by reordering to match the original exactly.
+>
+> **Styling (final, 2026-08-31)**: dark basemap (inverted Esri grey canvas
+> + Overpass roads, no CARTO key needed — see note above), full uncropped
+> `ap.gpkg` extent (an earlier session tightened/cropped this, but that
+> crop was tuned against the wrong route data above — the correct routes
+> fill the full extent well on their own). Only the core-city `poz.gpkg`
+> outline is drawn, matching every other figure in the manuscript — all 25
+> individual `ap.gpkg` municipal boundaries (matching the original
+> script's `roi` layer exactly) were tried too, but removed per a
+> follow-up request as too cluttered against the routes; `ap.gpkg` is
+> still used for the ROI filter/map extent, just not drawn. Panel titles
+> 18pt bold, wrapped onto two lines (robust to
+> patchwork column-width shifts); canvas 24in × 7in. A
+> `plot_annotation(theme=)` composite-level background is needed
+> separately from each panel's own `plot.background` (patchwork's own
+> gutters render white by default otherwise).
+
 > Adjust the tree above to match your actual folder layout, and confirm
 > the `Data/`/`Output/` paths scripts read from and write to.
 
@@ -219,6 +287,10 @@ a `REQUIRES TO RUN:` header comment, alongside every upstream `.rds`/
 06, 07, 09, 10 all source od_pair_utils.R (collapses raw itineraries to
 one row per OD pair with a PT/car travel-time ratio -- previously each
 re-implemented this independently; unified 2026-07-27).
+06's Part 3 (route-competitiveness map) additionally reads ap.gpkg,
+gtfs/ztm.zip, and itineraries_weights_route_detail.csv (a recovered
+snapshot of an earlier itinerary run -- not regenerated by any pipeline
+step, see the note above).
 08 and 10 source lisa_priority_utils.R (LISA clustering + PT investment
 priority typology). 09 and 10 also read pop_grid.gpkg from step 02.
 
@@ -272,8 +344,10 @@ has run at least once.
 6. **`06_travel_ratio_analysis.R`** — Collapses itineraries to one row per
    OD pair, attaches population/workplace weights, and explores PT/car
    travel-time ratios (rail vs. non-rail, competitive vs.
-   improvement-needed).
-   *Output: `itineraries_weights.csv`, several `Figures/Fig_travelratio_*.png`,
+   improvement-needed), plus a map of the top 30 ZTM routes carrying the
+   most/moderately/least competitive itineraries.
+   *Output: `itineraries_weights.csv`, several `Figures/Fig_travelratio_*.png`
+   (including `Fig_travelratio_route_competitiveness.png`),
    `competitive_by_municipality.csv`, `improvement_by_municipality.csv`*
 7. **`07_plot_itineraries.R`** — Maps itinerary flow density for PT vs.
    car and reports route-level descriptive statistics (duration,
@@ -321,7 +395,7 @@ has run at least once.
     a robustness check against an independent estimator (see
     `gwr_robustness_check.R`, not part of the normal pipeline).
     *Output: `gwr_local_coefficients.csv`,
-    `Figures/Fig_GWR_departures_local_coef.png`*
+    `Figures/Fig_GWR_departures_local.png`*
 
 Steps 06–13 are exploratory/analytical and can be run independently once
 step 05 has produced its output (for 06, 07, 08, 09, 10, 11), or step 10

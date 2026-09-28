@@ -369,7 +369,7 @@ plot_data <- matched %>%
 # in Figures 3/7) gets the purple stop; Synthetic proxy (the model construct
 # under evaluation, matching PT's and no-rail's role) gets yellow.
 ggplot(plot_data, aes(x = reorder(home_municipality, share), y = share, fill = source)) +
-  geom_col(position = "dodge") +
+  geom_col(position = "dodge", alpha = 0.8) +
   coord_flip() +
   scale_y_continuous(labels = percent) +
   scale_fill_manual(values = c(Census = "#9B59B6", "Synthetic proxy" = "#FDE725")) +

@@ -59,7 +59,7 @@
 # INPUT  : regression_data.csv (from 10_regression_analysis.R), poz.gpkg
 # OUTPUT : gwr_local_coefficients.csv -- all 9 predictors' local coefficients,
 #          one row per origin zone
-#          Figures/Fig_GWR_departures_local_coef.png
+#          Figures/Fig_GWR_departures_local.png
 # =============================================================================
 
 suppressMessages({
@@ -208,6 +208,6 @@ p <- ggplot() +
   )
 
 dir.create("../Figures", showWarnings = FALSE)
-ggsave("../Figures/Fig_GWR_departures_local_coef.png", plot = p,
+ggsave("../Figures/Fig_GWR_departures_local.png", plot = p,
        width = 9, height = 7.2, dpi = 300, bg = "#1a1a1a")
-cat("\nSaved Figures/Fig_GWR_departures_local_coef.png\n")
+cat("\nSaved Figures/Fig_GWR_departures_local.png\n")
